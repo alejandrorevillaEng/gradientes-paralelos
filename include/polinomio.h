@@ -42,7 +42,8 @@ int rng_entero(Rng *rng, int min, int max);      /* en [min, max] */
 int polinomio_crear(Polinomio *p, int num_vars, int num_terms);
 void polinomio_liberar(Polinomio *p);
 
-/* Añade un término. Devuelve el índice del término o -1 si no cabe. */
+/* Añade un término. Devuelve su índice, o -1 si t no cabe, si una variable está
+ * fuera de [0, num_vars) o si un exponente es menor que 1. */
 int polinomio_agregar_termino(Polinomio *p, int t, double coef, int num_factores,
                               const int *vars, const int *exps);
 

@@ -54,6 +54,10 @@ int polinomio_agregar_termino(Polinomio *p, int t, double coef, int num_factores
     if (t < 0 || t >= p->num_terms || num_factores < 0 || num_factores > MAX_FACTORES) {
         return -1;
     }
+    /* Un índice de variable fuera de rango haría leer fuera de x al evaluar. */
+    for (int k = 0; k < num_factores; k++) {
+        if (vars[k] < 0 || vars[k] >= p->num_vars || exps[k] < 1) return -1;
+    }
     p->coef[t] = coef;
     p->num_factores[t] = num_factores;
     for (int k = 0; k < MAX_FACTORES; k++) {

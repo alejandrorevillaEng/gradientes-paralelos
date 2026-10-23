@@ -208,6 +208,18 @@ static void test_newton_sistema_aleatorio(void) {
     sistema_liberar(&s);
 }
 
+static void test_terminos_invalidos(void) {
+    Polinomio p;
+    polinomio_crear(&p, 2, 2);
+    COMPROBAR(polinomio_agregar_termino(&p, 0, 1.0, 1, (int[]){2}, (int[]){1}) == -1);
+    COMPROBAR(polinomio_agregar_termino(&p, 0, 1.0, 1, (int[]){-1}, (int[]){1}) == -1);
+    COMPROBAR(polinomio_agregar_termino(&p, 0, 1.0, 1, (int[]){0}, (int[]){0}) == -1);
+    COMPROBAR(polinomio_agregar_termino(&p, 2, 1.0, 1, (int[]){0}, (int[]){1}) == -1);
+    COMPROBAR(polinomio_agregar_termino(&p, 0, 1.0, MAX_FACTORES + 1, NULL, NULL) == -1);
+    COMPROBAR(polinomio_agregar_termino(&p, 1, 1.0, 2, (int[]){0, 1}, (int[]){1, 2}) == 1);
+    polinomio_liberar(&p);
+}
+
 int main(void) {
     struct {
         const char *nombre;
@@ -221,6 +233,7 @@ int main(void) {
         {"eliminacion gaussiana", test_resolver_lineal},
         {"sistema del enunciado con Newton", test_sistema_enunciado},
         {"Newton en sistema aleatorio de 40 ecuaciones", test_newton_sistema_aleatorio},
+        {"terminos con variables o exponentes fuera de rango", test_terminos_invalidos},
     };
     const int n = (int)(sizeof(tests) / sizeof(tests[0]));
     for (int i = 0; i < n; i++) {

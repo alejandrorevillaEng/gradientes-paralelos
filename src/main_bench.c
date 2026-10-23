@@ -58,7 +58,7 @@ static double mediana(double *v, int n) {
         const int veces_ = una_ >= DURACION_MINIMA                          \
                                ? 1                                          \
                                : (int)(DURACION_MINIMA / (una_ + 1e-9)) + 1; \
-        double tiempos_[MAX_REPS];                                          \
+        double tiempos_[MAX_REPS] = {0};                                    \
         for (int r_ = 0; r_ < (reps); r_++) {                               \
             t0_ = cronometro_ahora();                                       \
             for (int v_ = 0; v_ < veces_; v_++) {                           \
