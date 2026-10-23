@@ -1,0 +1,19 @@
+# cooldown: espera unos días antes de proponer una versión recién publicada.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      acciones:
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/bench"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7

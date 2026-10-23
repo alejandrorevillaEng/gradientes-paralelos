@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpu:
+    name: Secuencial y OpenMP (${{ matrix.cc }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        cc: [gcc, clang]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: OpenMP para clang
+        if: matrix.cc == 'clang'
+        run: sudo apt-get update && sudo apt-get install -y libomp-dev
+      - name: Compilar (avisos como errores)
+        env:
+          CC: ${{ matrix.cc }}
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCON_CUDA=OFF -DCMAKE_C_FLAGS="-Werror"
+          cmake --build build -j
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
+
+  cuda:
+    name: Compilación CUDA (sin GPU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d # v0.2.36
+        with:
+          cuda: "12.6.3"
+          method: network
+          sub-packages: '["nvcc", "cudart"]'
+      - name: Compilar gradbench_cuda
+        # Los runners de GitHub no tienen GPU: aquí solo se comprueba que compila.
+        # Los tiempos se miden con notebooks/benchmark_cuda_colab.ipynb.
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=75
+          cmake --build build -j --target gradbench_cuda
+
+  graficas:
+    name: Gráficas a partir de los CSV
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: pip install -r bench/requirements.txt
+      - run: python bench/graficas.py --cpu resultados/cpu_ryzen7700x.csv --salida /tmp/graficas
