@@ -1,0 +1,40 @@
+gradbench | 16 nucleos logicos | reps=5 (mediana) | semilla=2025
+
+== Escalabilidad con el numero de hilos (500 vars, 20000 terminos) ==
+  secuencial                   1x1       164.352 ms  speedup     1.00x  efic. 100.0 %  err 1.8e-09
+  omp_nivel1                   1x1       161.664 ms  speedup     1.02x  efic. 101.7 %  err 1.8e-09
+  omp_nivel1                   2x1        84.926 ms  speedup     1.94x  efic.  96.8 %  err 1.8e-09
+  omp_nivel1                   4x1        47.962 ms  speedup     3.43x  efic.  85.7 %  err 1.8e-09
+  omp_nivel1                   8x1        25.334 ms  speedup     6.49x  efic.  81.1 %  err 1.8e-09
+  omp_nivel1                  16x1        21.185 ms  speedup     7.76x  efic.  48.5 %  err 1.8e-09
+
+== Tamano del problema (500 vars, 16 hilos) ==
+  secuencial                   1x1       160.790 ms  speedup     1.00x  efic. 100.0 %  err 1.8e-09
+  omp_nivel1                  16x1        19.906 ms  speedup     8.08x  efic.  50.5 %  err 1.8e-09
+  secuencial                   1x1       372.675 ms  speedup     1.00x  efic. 100.0 %  err 2.5e-09
+  omp_nivel1                  16x1        45.088 ms  speedup     8.27x  efic.  51.7 %  err 2.5e-09
+  secuencial                   1x1       741.271 ms  speedup     1.00x  efic. 100.0 %  err 4.6e-09
+  omp_nivel1                  16x1        66.836 ms  speedup    11.09x  efic.  69.3 %  err 4.6e-09
+  secuencial                   1x1      1488.082 ms  speedup     1.00x  efic. 100.0 %  err 7.4e-09
+  omp_nivel1                  16x1       157.430 ms  speedup     9.45x  efic.  59.1 %  err 7.4e-09
+
+== Paralelismo anidado: reparto externo x interno con 16 hilos ==
+  secuencial                   1x1       157.522 ms  speedup     1.00x  efic. 100.0 %  err 1.8e-09
+  omp_anidado                  1x16     1235.359 ms  speedup     0.13x  efic.   0.8 %  err 1.2e-09
+  omp_anidado                  2x8      1348.857 ms  speedup     0.12x  efic.   0.7 %  err 1.5e-09
+  omp_anidado                  4x4       156.887 ms  speedup     1.00x  efic.   6.3 %  err 1.6e-09
+  omp_anidado                  8x2        33.379 ms  speedup     4.72x  efic.  29.5 %  err 1.3e-09
+  omp_anidado                 16x1        22.702 ms  speedup     6.94x  efic.  43.4 %  err 1.8e-09
+  omp_anidado_sobresuscrito   16x16      626.357 ms  speedup     0.25x  efic.   0.1 %  err 1.2e-09
+
+== Metodo directo frente a metodo por terminos (16 hilos) ==
+  directo_sec                  1x1       162.472 ms  speedup     1.00x  efic. 100.0 %  err 1.8e-09
+  directo_omp                 16x1        21.009 ms  speedup     7.73x  efic.  48.3 %  err 1.8e-09
+  por_terminos_sec             1x1         0.332 ms  speedup   489.61x  efic. 48960.7 %  err 9.2e-11
+  por_terminos_omp            16x1         0.143 ms  speedup  1132.46x  efic. 7077.9 %  err 9.2e-11
+
+== Sistemas de ecuaciones: jacobiana y Newton (200 ecuaciones, 100 terminos/ec.) ==
+  jacobiana_directa_sec        1x1        14.430 ms  speedup     1.00x  efic. 100.0 %  err 2.5e-10
+  jacobiana_directa_omp       16x1         3.558 ms  speedup     4.06x  efic.  25.3 %  err 2.5e-10
+  jacobiana_terminos_omp      16x1         0.144 ms  speedup   100.17x  efic. 626.1 %  err 4.0e-11
+  Newton: converge en 3 iteraciones, residuo 1.14e-13, 0.0426 s, error frente a la solucion 1.1e-16

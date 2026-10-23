@@ -149,6 +149,7 @@ def gpu_bloques(filas, salida, gpu):
 
 
 def gpu_desglose(filas, salida, gpu):
+    """Reparto del tiempo de cada kernel (con su mejor bloque) entre copias y cálculo."""
     datos = [f for f in filas if f["experimento"] == "base"]
     if not datos:
         return
@@ -158,22 +159,55 @@ def gpu_desglose(filas, salida, gpu):
         if k not in mejores or float(f["total_ms"]) < float(mejores[k]["total_ms"]):
             mejores[k] = f
     kernels = list(mejores)
-    partes = [("h2d_ms", "Copia H→D"), ("kernel_ms", "Kernel"), ("d2h_ms", "Copia D→H")]
-    fig, ax = plt.subplots(figsize=(7, 4))
+    partes = [("h2d_ms", "Copia CPU → GPU"), ("kernel_ms", "Kernel"), ("d2h_ms", "Copia GPU → CPU")]
+    fig, ax = plt.subplots(figsize=(7.5, 4))
     izquierda = [0.0] * len(kernels)
     for i, (col, nombre) in enumerate(partes):
-        valores = [float(mejores[k][col]) for k in kernels]
-        ax.barh(kernels, valores, left=izquierda, color=SERIES[i], label=nombre, height=0.55,
+        pct = [100 * float(mejores[k][col]) / float(mejores[k]["total_ms"]) for k in kernels]
+        ax.barh(kernels, pct, left=izquierda, color=SERIES[i], label=nombre, height=0.55,
                 edgecolor=FONDO, linewidth=2)
-        izquierda = [a + b for a, b in zip(izquierda, valores)]
-    for y, total in enumerate(izquierda):
-        ax.text(total, y, f"  {total:.2f} ms", va="center", color=TEXTO, fontsize=9)
-    ax.set_xscale("log")
-    ax.set_xlabel("Tiempo total con el mejor bloque (ms, escala log)")
-    ax.set_title(f"Desglose de tiempos en GPU ({gpu})")
-    ax.legend(loc="lower right")
+        izquierda = [a + b for a, b in zip(izquierda, pct)]
+    for y, k in enumerate(kernels):
+        ax.text(101.5, y, f"{float(mejores[k]['total_ms']):.2f} ms", va="center", color=TEXTO, fontsize=9)
+    ax.set_xlim(0, 112)
+    ax.set_xticks([0, 25, 50, 75, 100], ["0 %", "25 %", "50 %", "75 %", "100 %"])
+    ax.set_xlabel("Parte del tiempo total (mejor tamaño de bloque)")
+    ax.set_title(f"En qué se va el tiempo en la GPU ({gpu})")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3)
     ax.grid(axis="y", visible=False)
     guardar(fig, salida, "gpu_desglose.png")
+
+
+def gpu_escalado(filas, salida, gpu):
+    """Tiempo frente a número de variables: OpenMP con todos los hilos y los dos mejores kernels."""
+    datos = [f for f in filas if f["experimento"] in ("base", "escalado_vars")]
+    if not datos:
+        return
+    mejor = {}
+    omp = {}
+    for f in datos:
+        vars_ = int(f["vars"])
+        total = float(f["total_ms"])
+        omp[vars_] = total * float(f["speedup_vs_omp"])
+        clave = (f["kernel"], vars_)
+        if clave not in mejor or total < mejor[clave]:
+            mejor[clave] = total
+    xs = sorted(omp)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(xs, [omp[x] for x in xs], color=TEXTO_SUAVE, marker="o", markersize=7, label="CPU, OpenMP 16 hilos")
+    for i, (kernel, nombre) in enumerate([("directo_original", "GPU, kernel original"),
+                                          ("directo_tiled", "GPU, tiled"),
+                                          ("por_terminos", "GPU, por términos")]):
+        ys = [mejor.get((kernel, x)) for x in xs]
+        ax.plot(xs, ys, color=SERIES[i], marker="o", markersize=7, label=nombre)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xticks(xs, [f"{x:,}".replace(",", ".") for x in xs])
+    ax.set_xlabel("Variables del polinomio (20.000 términos)")
+    ax.set_ylabel("Tiempo total (ms, escala log)")
+    ax.set_title(f"CPU frente a GPU al crecer el problema ({gpu})")
+    ax.legend(loc="upper left")
+    guardar(fig, salida, "gpu_escalado.png")
 
 
 def main():
@@ -181,7 +215,7 @@ def main():
     p.add_argument("--cpu", type=Path)
     p.add_argument("--gpu", type=Path)
     p.add_argument("--nombre-cpu", default="Ryzen 7 7700X")
-    p.add_argument("--nombre-gpu", default="Tesla T4")
+    p.add_argument("--nombre-gpu", default="RTX 5070")
     p.add_argument("--salida", type=Path, default=Path("docs/img"))
     a = p.parse_args()
     a.salida.mkdir(parents=True, exist_ok=True)
@@ -196,6 +230,7 @@ def main():
         filas = leer(a.gpu)
         gpu_bloques(filas, a.salida, a.nombre_gpu)
         gpu_desglose(filas, a.salida, a.nombre_gpu)
+        gpu_escalado(filas, a.salida, a.nombre_gpu)
 
 
 if __name__ == "__main__":

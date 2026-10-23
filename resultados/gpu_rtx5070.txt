@@ -1,0 +1,60 @@
+GPU: NVIDIA GeForce RTX 5070 (sm_120, 48 SM, 12.8 GB) | CPU: 16 nucleos logicos
+
+== base: 500 variables, 20000 terminos | CPU secuencial 134.479389 ms, OpenMP (16 hilos) 23.6 ms ==
+  directo_original     500 vars bloque   32 | H->D   0.137  kernel    15.205  D->H  0.002  total    15.344 ms | x8.8     vs sec  x1.54   vs omp | err 1.8e-09
+  directo_original     500 vars bloque   64 | H->D   0.137  kernel    16.281  D->H  0.002  total    16.420 ms | x8.2     vs sec  x1.44   vs omp | err 1.8e-09
+  directo_original     500 vars bloque  128 | H->D   0.122  kernel    16.779  D->H  0.002  total    16.903 ms | x8.0     vs sec  x1.40   vs omp | err 1.8e-09
+  directo_original     500 vars bloque  256 | H->D   0.126  kernel    20.202  D->H  0.002  total    20.330 ms | x6.6     vs sec  x1.16   vs omp | err 1.8e-09
+  directo_original     500 vars bloque  512 | H->D   0.155  kernel    34.660  D->H  0.002  total    34.817 ms | x3.9     vs sec  x0.68   vs omp | err 1.8e-09
+  directo_original     500 vars bloque 1024 | H->D   0.129  kernel    34.688  D->H  0.002  total    34.819 ms | x3.9     vs sec  x0.68   vs omp | err 1.8e-09
+  directo              500 vars bloque   32 | H->D   0.139  kernel     6.763  D->H  0.002  total     6.905 ms | x19.5    vs sec  x3.42   vs omp | err 8.0e-11
+  directo              500 vars bloque   64 | H->D   0.110  kernel     6.523  D->H  0.002  total     6.635 ms | x20.3    vs sec  x3.56   vs omp | err 8.0e-11
+  directo              500 vars bloque  128 | H->D   0.113  kernel     6.444  D->H  0.002  total     6.560 ms | x20.5    vs sec  x3.60   vs omp | err 8.0e-11
+  directo              500 vars bloque  256 | H->D   0.115  kernel     6.592  D->H  0.002  total     6.709 ms | x20.0    vs sec  x3.52   vs omp | err 8.0e-11
+  directo              500 vars bloque  512 | H->D   0.111  kernel    10.176  D->H  0.002  total    10.289 ms | x13.1    vs sec  x2.30   vs omp | err 8.0e-11
+  directo              500 vars bloque 1024 | H->D   0.121  kernel    10.239  D->H  0.002  total    10.362 ms | x13.0    vs sec  x2.28   vs omp | err 8.0e-11
+  directo_tiled        500 vars bloque   32 | H->D   0.139  kernel     4.851  D->H  0.002  total     4.993 ms | x26.9    vs sec  x4.73   vs omp | err 8.0e-11
+  directo_tiled        500 vars bloque   64 | H->D   0.154  kernel     4.317  D->H  0.002  total     4.473 ms | x30.1    vs sec  x5.28   vs omp | err 8.0e-11
+  directo_tiled        500 vars bloque  128 | H->D   0.114  kernel     4.450  D->H  0.002  total     4.567 ms | x29.4    vs sec  x5.17   vs omp | err 8.0e-11
+  directo_tiled        500 vars bloque  256 | H->D   0.105  kernel     5.845  D->H  0.002  total     5.952 ms | x22.6    vs sec  x3.97   vs omp | err 8.0e-11
+  directo_tiled        500 vars bloque  512 | H->D   0.107  kernel    10.559  D->H  0.002  total    10.668 ms | x12.6    vs sec  x2.21   vs omp | err 8.0e-11
+  directo_tiled        500 vars bloque 1024 | H->D   0.107  kernel    10.361  D->H  0.002  total    10.471 ms | x12.8    vs sec  x2.26   vs omp | err 8.0e-11
+  por_terminos         500 vars bloque   32 | H->D   0.141  kernel     0.090  D->H  0.004  total     0.235 ms | x573.1   vs sec  x100.67 vs omp | err 8.0e-11
+  por_terminos         500 vars bloque   64 | H->D   0.103  kernel     0.045  D->H  0.028  total     0.176 ms | x764.4   vs sec  x134.27 vs omp | err 8.0e-11
+  por_terminos         500 vars bloque  128 | H->D   0.105  kernel     0.046  D->H  0.003  total     0.154 ms | x874.2   vs sec  x153.57 vs omp | err 8.0e-11
+  por_terminos         500 vars bloque  256 | H->D   0.107  kernel     0.046  D->H  0.004  total     0.157 ms | x855.7   vs sec  x150.32 vs omp | err 8.0e-11
+  por_terminos         500 vars bloque  512 | H->D   0.103  kernel     0.037  D->H  0.004  total     0.144 ms | x936.4   vs sec  x164.49 vs omp | err 8.0e-11
+  por_terminos         500 vars bloque 1024 | H->D   0.099  kernel     0.046  D->H  0.003  total     0.149 ms | x903.8   vs sec  x158.76 vs omp | err 8.0e-11
+
+== escalado_vars: 2000 variables, 20000 terminos | CPU secuencial (no medido) ms, OpenMP (16 hilos) 63.0 ms ==
+  directo_original    2000 vars bloque  128 | H->D   0.141  kernel    15.851  D->H  0.002  total    15.994 ms | x0.0     vs sec  x3.94   vs omp | err 3.5e-09
+  directo_original    2000 vars bloque  256 | H->D   0.132  kernel    19.096  D->H  0.002  total    19.231 ms | x0.0     vs sec  x3.27   vs omp | err 3.5e-09
+  directo             2000 vars bloque  128 | H->D   0.150  kernel     5.719  D->H  0.002  total     5.870 ms | x0.0     vs sec  x10.72  vs omp | err 8.0e-11
+  directo             2000 vars bloque  256 | H->D   0.130  kernel     4.136  D->H  0.002  total     4.268 ms | x0.0     vs sec  x14.75  vs omp | err 8.0e-11
+  directo_tiled       2000 vars bloque  128 | H->D   0.103  kernel     3.978  D->H  0.003  total     4.085 ms | x0.0     vs sec  x15.41  vs omp | err 8.0e-11
+  directo_tiled       2000 vars bloque  256 | H->D   0.110  kernel     4.049  D->H  0.002  total     4.162 ms | x0.0     vs sec  x15.12  vs omp | err 8.0e-11
+  por_terminos        2000 vars bloque  128 | H->D   0.113  kernel     0.054  D->H  0.003  total     0.170 ms | x0.0     vs sec  x369.37 vs omp | err 8.0e-11
+  por_terminos        2000 vars bloque  256 | H->D   0.103  kernel     0.050  D->H  0.004  total     0.157 ms | x0.0     vs sec  x400.02 vs omp | err 8.0e-11
+
+== escalado_vars: 8000 variables, 20000 terminos | CPU secuencial (no medido) ms, OpenMP (16 hilos) 221.7 ms ==
+  directo_original    8000 vars bloque  128 | H->D   0.123  kernel    20.735  D->H  0.004  total    20.862 ms | x0.0     vs sec  x10.63  vs omp | err 3.2e-09
+  directo_original    8000 vars bloque  256 | H->D   0.142  kernel    20.937  D->H  0.004  total    21.083 ms | x0.0     vs sec  x10.52  vs omp | err 3.2e-09
+  directo             8000 vars bloque  128 | H->D   0.114  kernel     4.036  D->H  0.004  total     4.153 ms | x0.0     vs sec  x53.38  vs omp | err 7.9e-11
+  directo             8000 vars bloque  256 | H->D   0.116  kernel     5.032  D->H  0.004  total     5.153 ms | x0.0     vs sec  x43.03  vs omp | err 7.9e-11
+  directo_tiled       8000 vars bloque  128 | H->D   0.118  kernel     2.582  D->H  0.004  total     2.705 ms | x0.0     vs sec  x81.96  vs omp | err 7.9e-11
+  directo_tiled       8000 vars bloque  256 | H->D   0.111  kernel     2.572  D->H  0.004  total     2.687 ms | x0.0     vs sec  x82.51  vs omp | err 7.9e-11
+  por_terminos        8000 vars bloque  128 | H->D   0.139  kernel     0.079  D->H  0.042  total     0.259 ms | x0.0     vs sec  x854.44 vs omp | err 7.9e-11
+  por_terminos        8000 vars bloque  256 | H->D   0.128  kernel     0.060  D->H  0.050  total     0.237 ms | x0.0     vs sec  x933.67 vs omp | err 7.9e-11
+
+== escalado_vars: 32000 variables, 20000 terminos | CPU secuencial (no medido) ms, OpenMP (16 hilos) 939.8 ms ==
+  directo_original   32000 vars bloque  128 | H->D   0.053  kernel    51.933  D->H  0.077  total    52.063 ms | x0.0     vs sec  x18.05  vs omp | err 4.0e-09
+  directo_original   32000 vars bloque  256 | H->D   0.098  kernel    51.890  D->H  0.081  total    52.069 ms | x0.0     vs sec  x18.05  vs omp | err 4.0e-09
+  directo            32000 vars bloque  128 | H->D   0.081  kernel     6.006  D->H  0.069  total     6.155 ms | x0.0     vs sec  x152.67 vs omp | err 7.8e-11
+  directo            32000 vars bloque  256 | H->D   0.095  kernel     6.080  D->H  0.070  total     6.246 ms | x0.0     vs sec  x150.47 vs omp | err 7.8e-11
+  directo_tiled      32000 vars bloque  128 | H->D   0.051  kernel     4.543  D->H  0.068  total     4.662 ms | x0.0     vs sec  x201.60 vs omp | err 7.8e-11
+  directo_tiled      32000 vars bloque  256 | H->D   0.129  kernel     4.562  D->H  0.065  total     4.756 ms | x0.0     vs sec  x197.59 vs omp | err 7.8e-11
+  por_terminos       32000 vars bloque  128 | H->D   0.114  kernel     0.061  D->H  0.077  total     0.252 ms | x0.0     vs sec  x3735.42 vs omp | err 7.8e-11
+  por_terminos       32000 vars bloque  256 | H->D   0.119  kernel     0.064  D->H  0.073  total     0.256 ms | x0.0     vs sec  x3665.94 vs omp | err 7.8e-11
+
+== Jacobiana de un sistema 2000 x 2000 (100 terminos por ecuacion) ==
+  por_terminos        2000 vars bloque  256 | H->D   1.070  kernel     0.112  D->H  2.342  total     3.524 ms | x0.0     vs sec  x0.38   vs omp | err 3.2e-11

@@ -56,22 +56,34 @@ En sistemas de 200 ecuaciones con 100 términos por ecuación, la jacobiana tard
 
 ## Resultados en GPU
 
-La parte de CUDA se ejecuta en cualquier equipo con una GPU NVIDIA (CMake detecta su arquitectura) o en Google Colab con [notebooks/benchmark_cuda_colab.ipynb](notebooks/benchmark_cuda_colab.ipynb), que clona el repositorio, compila, pasa los tests y genera el CSV y las gráficas. En GitHub Actions solo se comprueba que compila, porque los runners no tienen GPU.
+Medidos en una NVIDIA GeForce RTX 5070 (Blackwell, 48 SM, 12 GB) con CUDA 13.3 en WSL2 (Ubuntu 24.04), mediana de 7 repeticiones. Las referencias de CPU de esta sección son del mismo equipo y el mismo Linux: 134,5 ms en secuencial y 23,6 ms con OpenMP y 16 hilos. Los datos están en [resultados/gpu_rtx5070.csv](resultados/gpu_rtx5070.csv).
 
-Los kernels que compara:
+| Kernel | Idea | Tiempo total | Frente al secuencial | Frente a OpenMP |
+|---|---|---|---|---|
+| `directo_original` | El de la práctica: un hilo por variable que suma f(x+h) y f(x−h) sobre todos los términos | 15,3 ms | 8,8x | 1,5x |
+| `directo` | Igual, pero solo suma la diferencia de los términos que contienen la variable | 6,6 ms | 20x | 3,6x |
+| `directo_tiled` | El anterior cargando los términos por bloques en memoria compartida | 4,5 ms | 30x | 5,3x |
+| `por_terminos` | Un hilo por término que suma su aportación con `atomicAdd` | 0,14 ms | ≈940x | ≈165x |
 
-| Kernel | Idea |
-|---|---|
-| `directo_original` | El de la práctica: un hilo por variable que suma f(x+h) y f(x−h) sobre todos los términos |
-| `directo` | Igual, pero solo suma la diferencia de los términos que contienen la variable |
-| `directo_tiled` | El anterior cargando los términos por bloques en memoria compartida |
-| `por_terminos` | Un hilo por término que suma su aportación con `atomicAdd`; también calcula jacobianas |
+El tiempo total incluye las copias entre CPU y GPU, y todos los resultados se comparan con el gradiente analítico. Los kernels nuevos dan un error relativo de 8e-11, frente al 2e-9 del original.
 
-Como referencia, la versión original medida en el laboratorio de la universidad (RTX 2080 Ti) tardaba 15,96 ms en total (0,19 ms de copia a la GPU, 15,76 ms de kernel y 0,02 ms de vuelta) frente a 509 ms del secuencial: unas 32 veces más rápida. Con 500 variables solo hay 500 hilos, muy pocos para llenar una GPU, y por eso los bloques pequeños (128) iban mejor que los de 1.024, que dejan casi todos los multiprocesadores parados.
+![CPU frente a GPU al crecer el problema](docs/img/gpu_escalado.png)
+
+Con 500 variables la GPU está casi vacía: el kernel original lanza 500 hilos para 48 multiprocesadores. Al subir a 32.000 variables el tiempo de OpenMP crece en proporción (de 24 a 940 ms) y el de la GPU apenas se mueve, porque por fin hay hilos para llenarla: el kernel con tiling resuelve las 32.000 variables en 4,7 ms, unas 200 veces menos que la CPU con 16 hilos.
+
+![Tamaño de bloque](docs/img/gpu_bloques.png)
+
+Por el mismo motivo, con 500 variables van mejor los bloques pequeños: con bloques de 512 o 1.024 hilos todo cabe en un solo bloque, trabaja un único multiprocesador y el tiempo se duplica.
+
+![Reparto del tiempo en la GPU](docs/img/gpu_desglose.png)
+
+En el kernel por términos el cálculo dura 0,04 ms y la copia de los datos a la GPU tarda más que el propio cálculo. Lo mismo pasa con la jacobiana de un sistema de 2.000 ecuaciones: el kernel tarda 0,11 ms, pero devolver la matriz de 32 MB a la CPU cuesta 2,3 ms, y en total la GPU (3,5 ms) pierde frente a OpenMP. Para que compense, el resultado tendría que quedarse en la GPU (por ejemplo, resolviendo allí también el paso de Newton).
+
+Como referencia, la versión original medida en el laboratorio de la universidad (RTX 2080 Ti) tardaba 15,96 ms, prácticamente lo mismo que en la RTX 5070: el cuello de botella era el diseño del kernel, no la tarjeta. Para repetir las medidas sin GPU propia está [notebooks/benchmark_cuda_colab.ipynb](notebooks/benchmark_cuda_colab.ipynb), que lo hace todo en Google Colab. En GitHub Actions solo se comprueba que compila, porque los runners no tienen GPU.
 
 ## Cómo ejecutarlo
 
-Requisitos: CMake 3.24 o superior y un compilador de C con OpenMP (GCC o Clang con libomp). CUDA es opcional.
+Requisitos: CMake 3.24 o superior y un compilador de C con OpenMP (GCC o Clang con libomp). CUDA es opcional; en Windows lo más sencillo es WSL2 con Ubuntu y el paquete `cuda-toolkit` del repositorio de NVIDIA para WSL, que usa el driver de Windows.
 
 ```bash
 git clone https://github.com/alejandrorevillaEng/gradientes-paralelos.git
