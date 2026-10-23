@@ -2,7 +2,7 @@
 #   docker build -t gradientes .
 #   docker run --rm gradientes --experimento escalado
 #   docker run --rm -v "$PWD/resultados:/datos" gradientes --csv /datos/mi_cpu.csv
-FROM ubuntu:24.04 AS compilacion
+FROM ubuntu:25.10 AS compilacion
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential cmake python3 \
     && rm -rf /var/lib/apt/lists/*
@@ -15,7 +15,7 @@ COPY cuda ./cuda
 COPY python ./python
 RUN cmake --preset release && cmake --build --preset release -j && ctest --preset release
 
-FROM ubuntu:24.04
+FROM ubuntu:25.10
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 python3 \
     && rm -rf /var/lib/apt/lists/* \
