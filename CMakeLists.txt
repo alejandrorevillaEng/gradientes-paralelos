@@ -20,6 +20,19 @@ if(NOT MSVC)
   target_link_libraries(gradientes PUBLIC m)
 endif()
 
+# La misma biblioteca como .so/.dll para usarla desde Python (python/gradientes).
+option(CON_PYTHON "Compilar la biblioteca compartida para Python" ON)
+if(CON_PYTHON)
+  add_library(gradientes_compartida SHARED src/polinomio.c src/gradiente.c src/sistema.c)
+  set_target_properties(gradientes_compartida PROPERTIES OUTPUT_NAME gradientes
+                        WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  target_include_directories(gradientes_compartida PUBLIC include)
+  target_link_libraries(gradientes_compartida PUBLIC OpenMP::OpenMP_C)
+  if(NOT MSVC)
+    target_link_libraries(gradientes_compartida PUBLIC m)
+  endif()
+endif()
+
 add_executable(gradbench src/main_bench.c)
 target_link_libraries(gradbench PRIVATE gradientes)
 
@@ -33,6 +46,12 @@ add_test(NAME tests_cpu COMMAND tests_cpu)
 add_test(NAME sistema_demo COMMAND sistema_demo)
 add_test(NAME gradbench_humo COMMAND gradbench --vars 60 --terms 600 --reps 1 --hilos 1,2
          --tamanos 600 --experimento todo)
+
+find_package(Python3 3.10 COMPONENTS Interpreter)
+if(CON_PYTHON AND Python3_FOUND)
+  add_test(NAME python COMMAND Python3::Interpreter -m unittest discover -s ${CMAKE_SOURCE_DIR}/python/tests -v)
+  set_tests_properties(python PROPERTIES ENVIRONMENT "GRADIENTES_LIB=$<TARGET_FILE:gradientes_compartida>")
+endif()
 
 # CUDA es opcional: solo se compila si hay nvcc (Colab, Kaggle o un PC con NVIDIA).
 option(CON_CUDA "Compilar la version CUDA si hay compilador" ON)
