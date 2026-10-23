@@ -19,14 +19,14 @@ Este proyecto parte de la práctica final de Programación Paralela (Grado en In
 
 **El código entregado no compilaba.** Al copiarlo a los `.txt` de la entrega, los `\n` de los `printf` se convirtieron en `%n` y la barra de continuación de la macro `CUDA_CHECK` en `%`. Un `printf` con `%n` y sin argumento es comportamiento indefinido: en el mejor caso no imprime bien y en el peor cuelga el programa.
 
-**El speed-up de CUDA estaba inflado unas cinco veces.** El tiempo secuencial que usamos (2.773 ms) era el de la versión OpenMP, que repite el cálculo 5 veces. El de CUDA (15,96 ms) era una sola ejecución. Con las mismas medidas del laboratorio, pero comparando una ejecución con una ejecución:
+**El speed-up de CUDA estaba inflado unas cinco veces.** El tiempo secuencial que se usó (2.773 ms) era el de la versión OpenMP, que repite el cálculo 5 veces. El de CUDA (15,96 ms) era una sola ejecución. Con las mismas medidas del laboratorio, pero comparando una ejecución con una ejecución:
 
 | Comparación (RTX 2080 Ti, 500 variables, 20.000 términos) | Memoria | Corregido |
 |---|---|---|
 | CUDA frente al secuencial (509 ms / 15,96 ms) | 173,7x | ≈32x |
 | CUDA frente a OpenMP con 12 hilos (242,9 / 5 = 48,6 ms) | 15,2x | ≈3x |
 
-**El paralelismo anidado usaba más hilos de los que creíamos.** Con `omp_set_num_threads(4)` y el anidamiento activado, cada uno de los 4 hilos externos abre otro equipo de 4: en total 16 hilos. Por eso salía un speed-up "superlineal" de 8,63x con "4 hilos", que en la memoria atribuimos a la caché. Aquí se mide el reparto real (1×16, 2×8, 4×4, 8×2, 16×1) y el caso de 16×16 hilos.
+**El paralelismo anidado usaba más hilos de los que parecía.** Con `omp_set_num_threads(4)` y el anidamiento activado, cada uno de los 4 hilos externos abre otro equipo de 4: en total 16 hilos. Por eso salía un speed-up "superlineal" de 8,63x con "4 hilos", que en la memoria se atribuyó a la caché. Aquí se mide el reparto real (1×16, 2×8, 4×4, 8×2, 16×1) y el caso de 16×16 hilos.
 
 **La conclusión sobre el anidamiento era la contraria.** Abrir un equipo de hilos para cada evaluación del polinomio (1.000 por gradiente) cuesta más de lo que se gana: todos los repartos con hilos internos van peor que paralelizar solo el bucle externo.
 

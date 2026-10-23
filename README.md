@@ -10,7 +10,7 @@ Cálculo numérico del gradiente de funciones multivariables, y de la jacobiana 
 
 ## Por qué existe
 
-Es la práctica final de Programación Paralela (Grado en Ingeniería Informática, UCAM, curso 2025-26). Calcular gradientes es la base del entrenamiento de redes neuronales y de casi cualquier método de optimización, y quería entender de verdad cuánto se gana repartiendo ese cálculo entre núcleos de CPU y miles de hilos de GPU. Al rehacerla para publicarla encontré errores en lo que entregué (el código no compilaba y el speed-up de CUDA estaba inflado unas cinco veces); los cuento en [docs/practica-original.md](docs/practica-original.md).
+Es la práctica final de Programación Paralela (Grado en Ingeniería Informática, UCAM, curso 2025-26). Calcular gradientes es la base del entrenamiento de redes neuronales y de casi cualquier método de optimización, y quería entender de verdad cuánto se gana repartiendo ese cálculo entre núcleos de CPU y miles de hilos de GPU. Al rehacerla para publicarla encontré errores en la versión entregada (el código no compilaba y el speed-up de CUDA estaba inflado unas cinco veces); los cuento en [docs/practica-original.md](docs/practica-original.md).
 
 ## Qué hace
 
