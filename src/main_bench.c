@@ -107,7 +107,8 @@ static void ayuda(void) {
 static int leer_opciones(int argc, char **argv, Opciones *o) {
     *o = (Opciones){500, 20000, 2, 3, 2025ULL, {0}, 0, {20000, 40000, 80000, 160000}, 4,
                     "todo", NULL};
-    for (int i = 1; i < argc; i++) {
+    /* Las opciones van por parejas: --nombre valor. */
+    for (int i = 1; i < argc; i += 2) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--help") || !strcmp(a, "-h")) {
@@ -131,7 +132,6 @@ static int leer_opciones(int argc, char **argv, Opciones *o) {
             fprintf(stderr, "Opcion desconocida: %s\n", a);
             return -1;
         }
-        i++;
     }
     if (o->vars < 1 || o->terms < 1 || o->max_exp < 1 || o->reps < 1 || o->reps > MAX_REPS) {
         fprintf(stderr, "Valores fuera de rango\n");

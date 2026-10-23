@@ -1,1 +1,3 @@
 matplotlib==3.11.2
+# Dependencia de matplotlib fijada a una versión sin vulnerabilidades conocidas.
+pillow==12.3.0

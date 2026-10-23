@@ -19,14 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Binario oficial sobre todo el historial. La acción gitleaks-action falla en el
+      # primer push de un repo (el primer commit no tiene padre para el rango).
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo"             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*'             ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose --exit-code 1
 
   sast:
     name: Análisis estático (semgrep)
@@ -46,4 +47,5 @@ jobs:
       security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
     with:
-      upload-sarif: true
+      # La pestaña Security (code scanning) solo está disponible gratis en repos públicos.
+      upload-sarif: ${{ !github.event.repository.private }}
