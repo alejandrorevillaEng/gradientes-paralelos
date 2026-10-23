@@ -32,4 +32,4 @@ Este proyecto parte de la práctica final de Programación Paralela (Grado en In
 
 **El kernel restaba dos números enormes.** Sumaba f(x+h) y f(x−h) sobre los 20.000 términos y luego los restaba, perdiendo cifras significativas. Como f es una suma de términos, basta con sumar la diferencia de los términos que contienen la variable: mismo resultado, más preciso y con menos trabajo.
 
-**Otras cosas.** La memoria decía que se usaba memoria fijada y el código entregado usaba `malloc`. El generador con `rand()` no da los mismos números en todos los sistemas; ahora hay uno propio (splitmix64). Faltaban la valoración final del uso de la IA y referencias reales en la bibliografía.
+**Otras cosas.** La memoria decía que se usaba memoria fijada y el código entregado usaba `malloc`. El generador con `rand()` no da los mismos números en todos los sistemas; ahora hay uno propio (splitmix64). Faltaban referencias reales en la bibliografía.
