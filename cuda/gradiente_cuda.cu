@@ -13,6 +13,10 @@
  *                     sus variables con atomicAdd (requiere sm_60 o superior)
  *
  * Tiempos con cudaEvent: copia H->D, kernel y copia D->H por separado.
+ *
+ * El experimento "precision" repite el kernel directo en FP64 y en FP32. Las
+ * GeForce tienen una fracción pequeña de unidades de doble precisión, pero con
+ * diferencias finitas FP32 obliga a usar un paso h mucho mayor.
  */
 #include "gradiente.h"
 #include "polinomio.h"
@@ -22,6 +26,8 @@
 #include <omp.h>
 
 #include <algorithm>
+#include <cfloat>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -156,6 +162,39 @@ __global__ void k_por_terminos(PolinomioDev p, const int *fila, const double *x,
     }
 }
 
+/* El kernel directo para cualquier tipo de coma flotante (experimento de precisión). */
+template <typename T>
+__device__ __forceinline__ T potencia_t(T b, int e) {
+    T r = 1;
+    for (int i = 0; i < e; i++) r *= b;
+    return r;
+}
+
+template <typename T>
+__global__ void k_directo_t(int num_vars, int num_terms, const T *coef, const int *num_factores,
+                            const int *var, const int *exp, const T *x, T h, T *grad) {
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= num_vars) return;
+    T suma = 0;
+    for (int t = 0; t < num_terms; t++) {
+        const int nf = num_factores[t];
+        const int *vars = var + t * MAX_FACTORES;
+        const int *exps = exp + t * MAX_FACTORES;
+        int pos = -1;
+        for (int k = 0; k < nf; k++) {
+            if (vars[k] == i) pos = k;
+        }
+        if (pos < 0) continue;
+        T resto = coef[t];
+        for (int k = 0; k < nf; k++) {
+            if (k != pos) resto *= potencia_t(x[vars[k]], exps[k]);
+        }
+        const T xi = x[i];
+        suma += resto * (potencia_t(xi + h, exps[pos]) - potencia_t(xi - h, exps[pos])) / (T(2) * h);
+    }
+    grad[i] = suma;
+}
+
 /* ------------------------------------------------------------------------ */
 
 struct Opciones {
@@ -167,6 +206,7 @@ struct Opciones {
     std::vector<int> bloques{32, 64, 128, 256, 512, 1024};
     std::vector<int> lista_vars{500, 2000, 8000, 32000};
     const char *csv = nullptr;
+    std::string experimento = "todo";
 };
 
 static FILE *salida_csv = nullptr;
@@ -374,6 +414,96 @@ static void medir_problema(const char *exp, const Opciones &o, int vars, bool me
     polinomio_liberar(&p);
 }
 
+/* Mide el kernel directo con datos de tipo T y paso h. Devuelve el gradiente en double. */
+template <typename T>
+static void medir_tipo(const char *nombre, const Polinomio &p, const std::vector<double> &x,
+                       const std::vector<double> &exacto, T h, int bloque, const Opciones &o,
+                       const Referencias &ref) {
+    const int n = p.num_vars, T_ = p.num_terms;
+    std::vector<T> coef(p.coef, p.coef + T_), xt(x.begin(), x.end()), g(n);
+    T *d_coef, *d_x, *d_grad;
+    int *d_nf, *d_var, *d_exp;
+    CUDA_OK(cudaMalloc(&d_coef, T_ * sizeof(T)));
+    CUDA_OK(cudaMalloc(&d_x, n * sizeof(T)));
+    CUDA_OK(cudaMalloc(&d_grad, n * sizeof(T)));
+    CUDA_OK(cudaMalloc(&d_nf, T_ * sizeof(int)));
+    CUDA_OK(cudaMalloc(&d_var, (size_t)T_ * MAX_FACTORES * sizeof(int)));
+    CUDA_OK(cudaMalloc(&d_exp, (size_t)T_ * MAX_FACTORES * sizeof(int)));
+
+    cudaEvent_t e0, e1, e2, e3;
+    CUDA_OK(cudaEventCreate(&e0));
+    CUDA_OK(cudaEventCreate(&e1));
+    CUDA_OK(cudaEventCreate(&e2));
+    CUDA_OK(cudaEventCreate(&e3));
+    std::vector<double> th, tk, td;
+    for (int r = 0; r <= o.reps; r++) {  /* la vuelta 0 es de calentamiento */
+        CUDA_OK(cudaEventRecord(e0));
+        CUDA_OK(cudaMemcpy(d_coef, coef.data(), T_ * sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_OK(cudaMemcpy(d_nf, p.num_factores, T_ * sizeof(int), cudaMemcpyHostToDevice));
+        CUDA_OK(cudaMemcpy(d_var, p.var, (size_t)T_ * MAX_FACTORES * sizeof(int), cudaMemcpyHostToDevice));
+        CUDA_OK(cudaMemcpy(d_exp, p.exp, (size_t)T_ * MAX_FACTORES * sizeof(int), cudaMemcpyHostToDevice));
+        CUDA_OK(cudaMemcpy(d_x, xt.data(), n * sizeof(T), cudaMemcpyHostToDevice));
+        CUDA_OK(cudaEventRecord(e1));
+        k_directo_t<T><<<(n + bloque - 1) / bloque, bloque>>>(n, T_, d_coef, d_nf, d_var, d_exp, d_x, h,
+                                                                d_grad);
+        CUDA_OK(cudaGetLastError());
+        CUDA_OK(cudaEventRecord(e2));
+        CUDA_OK(cudaMemcpy(g.data(), d_grad, n * sizeof(T), cudaMemcpyDeviceToHost));
+        CUDA_OK(cudaEventRecord(e3));
+        CUDA_OK(cudaEventSynchronize(e3));
+        float a, b, c;
+        CUDA_OK(cudaEventElapsedTime(&a, e0, e1));
+        CUDA_OK(cudaEventElapsedTime(&b, e1, e2));
+        CUDA_OK(cudaEventElapsedTime(&c, e2, e3));
+        if (r > 0) {
+            th.push_back(a);
+            tk.push_back(b);
+            td.push_back(c);
+        }
+    }
+    std::vector<double> gd(g.begin(), g.end());
+    registrar("precision", nombre, n, T_, bloque, mediana(th), mediana(tk), mediana(td), ref,
+              error_relativo(gd.data(), exacto.data(), n));
+
+    cudaEventDestroy(e0);
+    cudaEventDestroy(e1);
+    cudaEventDestroy(e2);
+    cudaEventDestroy(e3);
+    cudaFree(d_coef);
+    cudaFree(d_x);
+    cudaFree(d_grad);
+    cudaFree(d_nf);
+    cudaFree(d_var);
+    cudaFree(d_exp);
+}
+
+/*
+ * FP64 frente a FP32 con el kernel directo. Con exponentes hasta 3 la diferencia
+ * centrada tiene error de truncamiento O(h^2) y de redondeo O(eps/h); el paso que
+ * equilibra los dos es del orden de cbrt(eps): ~6e-6 en double y ~5e-3 en float.
+ */
+static void medir_precision(const Opciones &o) {
+    const int vars = 8000, bloque = 256;
+    Rng rng;
+    rng_iniciar(&rng, o.semilla);
+    Polinomio p;
+    if (polinomio_aleatorio(&p, vars, o.terms, 3, 3, 10.0, &rng) != 0) exit(1);
+    std::vector<double> x(vars), exacto(vars), grad(vars);
+    punto_aleatorio(x.data(), vars, 2.0, &rng);
+    polinomio_gradiente_exacto(&p, x.data(), exacto.data());
+
+    double t0 = omp_get_wtime();
+    grad_directo_omp(&p, x.data(), PASO_H_DEFECTO, grad.data(), omp_get_num_procs());
+    const Referencias ref{-1.0, 1e3 * (omp_get_wtime() - t0)};
+    printf("\n== precision: %d variables, %d terminos, exponentes hasta 3 | OpenMP %.1f ms ==\n", vars,
+           o.terms, ref.t_omp_ms);
+
+    medir_tipo<double>("fp64", p, x, exacto, PASO_H_DEFECTO, bloque, o, ref);
+    medir_tipo<float>("fp32_h_1e-6", p, x, exacto, 1e-6f, bloque, o, ref);
+    medir_tipo<float>("fp32_h_ajustado", p, x, exacto, std::cbrt(FLT_EPSILON), bloque, o, ref);
+    polinomio_liberar(&p);
+}
+
 /* Jacobiana de un sistema aleatorio n x n con el kernel por términos. */
 static void medir_jacobiana(const Opciones &o) {
     const int n = 2000, terms = 100, bloque = 256;
@@ -461,6 +591,7 @@ static void ayuda() {
          "  --lista-vars L  variables para el experimento de escalado (500,2000,8000,32000)\n"
          "  --reps R        repeticiones por medida; se guarda la mediana (5)\n"
          "  --semilla S     semilla (2025)\n"
+         "  --experimento E todo | precision (todo)\n"
          "  --csv FICHERO   guarda los resultados en CSV");
 }
 
@@ -484,6 +615,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(a, "--reps")) o.reps = static_cast<int>(std::strtol(v, nullptr, 10));
         else if (!strcmp(a, "--semilla")) o.semilla = strtoull(v, nullptr, 10);
         else if (!strcmp(a, "--csv")) o.csv = v;
+        else if (!strcmp(a, "--experimento")) o.experimento = v;
         else {
             ayuda();
             return 2;
@@ -491,6 +623,10 @@ int main(int argc, char **argv) {
     }
     const bool bloques_validos = !o.bloques.empty() &&
         std::all_of(o.bloques.begin(), o.bloques.end(), [](int b) { return b >= 32 && b <= 1024; });
+    if (o.experimento != "todo" && o.experimento != "precision") {
+        fprintf(stderr, "Experimento desconocido: %s\n", o.experimento.c_str());
+        return 2;
+    }
     if (o.vars < 1 || o.terms < 1 || o.reps < 1 || !bloques_validos) {
         fprintf(stderr, "Valores fuera de rango (los bloques van de 32 a 1024 hilos)\n");
         return 2;
@@ -515,11 +651,14 @@ int main(int argc, char **argv) {
                             "speedup_vs_sec,speedup_vs_omp,error_rel\n");
     }
 
-    medir_problema("base", o, o.vars, true, o.bloques);
-    for (int vars : o.lista_vars) {
-        if (vars != o.vars) medir_problema("escalado_vars", o, vars, false, {128, 256});
+    if (o.experimento == "todo") {
+        medir_problema("base", o, o.vars, true, o.bloques);
+        for (int vars : o.lista_vars) {
+            if (vars != o.vars) medir_problema("escalado_vars", o, vars, false, {128, 256});
+        }
+        medir_jacobiana(o);
     }
-    medir_jacobiana(o);
+    medir_precision(o);
 
     if (salida_csv) fclose(salida_csv);
     return 0;

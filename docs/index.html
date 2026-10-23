@@ -70,6 +70,10 @@
   .division { font-size: 1.05rem; color: var(--texto-suave); }
 
   /* Gráficas */
+  .tabla { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-variant-numeric: tabular-nums; }
+  .tabla th { text-align: left; font-weight: 500; color: var(--texto-suave); font-size: .85rem; padding: 8px 6px; border-bottom: 1px solid var(--rejilla); }
+  .tabla td { padding: 10px 6px; border-bottom: 1px solid var(--rejilla); }
+  .tabla tr:last-child td { border-bottom: 0; }
   .tarjeta { background: var(--superficie); border: 1px solid var(--rejilla); border-radius: 18px; padding: 18px 18px 10px; }
   .tarjeta h3 { margin: 0 0 2px; font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
   .tarjeta .nota { margin: 0 0 8px; color: var(--texto-tenue); font-size: .85rem; }
@@ -190,6 +194,20 @@
         <p>Con 500 variables la diferencia es pequeña. Al subir a 32.000 el tiempo de OpenMP crece en proporción y el de la GPU apenas cambia, porque por fin hay hilos para llenar sus 48 multiprocesadores: el kernel con tiling va unas 200 veces más rápido que la CPU con 16 hilos.</p>
       </div>
       <div class="tarjeta aparece"><h3>Tiempo total al crecer el número de variables</h3><p class="nota">20.000 términos · escala logarítmica en los dos ejes</p><div class="grafica" id="g-escala-gpu"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rejilla-2 inversa">
+      <div class="tarjeta aparece">
+        <h3>El mismo kernel en doble y en simple precisión</h3><p class="nota">8.000 variables, 20.000 términos, exponentes hasta 3 · error frente al gradiente exacto</p>
+        <table class="tabla" id="t-precision"><thead><tr><th>Tipo</th><th>Paso</th><th>Kernel</th><th>Error relativo</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="aparece">
+        <span class="antetitulo">FP32 frente a FP64</span>
+        <h2>Bajar a FP32 no lo hace más rápido, solo menos preciso</h2>
+        <p>Las GeForce tienen muy pocas unidades de doble precisión, así que esperaba que FP32 fuera mucho más rápido. Medido, tarda lo mismo: este kernel pasa el tiempo recorriendo los términos y comparando índices, no multiplicando. Y con el mismo paso h el error sube al 5 %, porque float tiene unos 7 dígitos y la resta de la diferencia centrada se los come. Ajustando h a la raíz cúbica de épsilon baja a unos 4·10⁻⁶, que sigue siendo cinco órdenes peor que en doble.</p>
+      </div>
     </div>
   </section>
 
@@ -336,9 +354,10 @@
     formatoInfo: ms, tituloInfo: (x) => `bloques de ${x} hilos`, formatoEje: (m) => (m < 1 ? fmt(m, 2) : fmt(m, 0)),
   });
 
-  const varsLista = [...new Set(gpu.filter((f) => f.experimento !== 'jacobiana').map((f) => f.vars))].sort((a, b) => a - b);
-  const mejor = (k, v) => { const filas = gpu.filter((f) => f.kernel === k && f.vars === v && f.experimento !== 'jacobiana'); return filas.length ? Math.min(...filas.map((f) => f.total_ms)) : null; };
-  const omp = varsLista.map((v) => { const f = gpu.find((g) => g.vars === v && g.experimento !== 'jacobiana'); return f.total_ms * f.speedup_vs_omp; });
+  const escalado = gpu.filter((f) => f.experimento === 'base' || f.experimento === 'escalado_vars');
+  const varsLista = [...new Set(escalado.map((f) => f.vars))].sort((a, b) => a - b);
+  const mejor = (k, v) => { const filas = escalado.filter((f) => f.kernel === k && f.vars === v); return filas.length ? Math.min(...filas.map((f) => f.total_ms)) : null; };
+  const omp = varsLista.map((v) => { const f = escalado.find((g) => g.vars === v); return f.total_ms * f.speedup_vs_omp; });
   grafica('g-escala-gpu', {
     ylog: true, titulo: 'CPU frente a GPU', categorias: varsLista.map((v) => fmt(v, 0)), ejeX: 'Variables',
     series: [
@@ -349,6 +368,26 @@
     ],
     formatoInfo: ms, tituloInfo: (x) => `${x} variables`, formatoEje: (m) => (m < 1 ? fmt(m, 1) : fmt(m, 0)),
   });
+
+  /* Tabla FP64 frente a FP32. */
+  const cuerpo = document.querySelector('#t-precision tbody');
+  const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+  const error = (v) => {
+    if (v >= 1e-3) return `${fmt(v * 100, 1)} %`;
+    const [m, e] = v.toExponential(1).split('e');
+    return `${m.replace('.', ',')}·10${[...String(Number(e))].map((c) => SUP[c]).join('')}`;
+  };
+  const nombres = { fp64: ['FP64', 'h = 10⁻⁶'], 'fp32_h_1e-6': ['FP32', 'h = 10⁻⁶'], fp32_h_ajustado: ['FP32', 'h = ∛ε ≈ 5·10⁻³'] };
+  for (const f of gpu.filter((g) => g.experimento === 'precision')) {
+    const fila = document.createElement('tr');
+    const [tipo, paso] = nombres[f.kernel] || [f.kernel, ''];
+    for (const texto of [tipo, paso, ms(f.kernel_ms), error(f.error_rel)]) {
+      const celda = document.createElement('td');
+      celda.textContent = texto;
+      fila.appendChild(celda);
+    }
+    cuerpo.appendChild(fila);
+  }
 
   /* Apariciones al hacer scroll y el tachado del 173x. */
   const obs = new IntersectionObserver((ent) => ent.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } }), { threshold: .15 });

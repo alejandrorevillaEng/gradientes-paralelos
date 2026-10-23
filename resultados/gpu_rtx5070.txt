@@ -58,3 +58,8 @@ GPU: NVIDIA GeForce RTX 5070 (sm_120, 48 SM, 12.8 GB) | CPU: 16 nucleos logicos
 
 == Jacobiana de un sistema 2000 x 2000 (100 terminos por ecuacion) ==
   por_terminos        2000 vars bloque  256 | H->D   1.070  kernel     0.112  D->H  2.342  total     3.524 ms | x0.0     vs sec  x0.38   vs omp | err 3.2e-11
+
+== precision: 8000 variables, 20000 terminos, exponentes hasta 3 | OpenMP 355.5 ms ==
+  fp64                8000 vars bloque  256 | H->D   0.440  kernel     5.560  D->H  0.095  total     6.095 ms | x0.0     vs sec  x58.33  vs omp | err 8.1e-11
+  fp32_h_1e-6         8000 vars bloque  256 | H->D   0.325  kernel     4.896  D->H  0.084  total     5.305 ms | x0.0     vs sec  x67.02  vs omp | err 4.7e-02
+  fp32_h_ajustado     8000 vars bloque  256 | H->D   0.410  kernel     5.358  D->H  0.095  total     5.862 ms | x0.0     vs sec  x60.65  vs omp | err 3.8e-06
