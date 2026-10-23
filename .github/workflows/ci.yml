@@ -34,6 +34,61 @@ jobs:
       - name: Tests
         run: ctest --test-dir build --output-on-failure
 
+  sanitizers:
+    name: AddressSanitizer y UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compilar y probar con sanitizers
+        run: |
+          cmake --preset sanitizers
+          cmake --build --preset sanitizers -j
+          ctest --preset sanitizers
+
+  analisis:
+    name: Análisis estático (cppcheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: cppcheck
+        run: cppcheck --enable=warning,performance,portability --std=c11 --inline-suppr --error-exitcode=1 -q -I include src tests
+
+  cobertura:
+    name: Cobertura (mínimo 85 % de líneas)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update && sudo apt-get install -y gcovr
+      - name: Tests con gcov
+        run: |
+          cmake --preset cobertura
+          cmake --build --preset cobertura -j
+          ctest --preset cobertura
+      - name: Informe y umbral
+        run: |
+          mkdir -p cobertura
+          gcovr -r . build/cobertura --filter src/ --print-summary --fail-under-line 85                 --html-details cobertura/index.html
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: cobertura
+          path: cobertura/
+
+  docker:
+    name: Imagen Docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Construir y ejecutar una medida corta
+        run: |
+          docker build -t gradientes .
+          docker run --rm gradientes --vars 100 --terms 1000 --reps 1 --hilos 1,2 --experimento escalado
+
   cuda:
     name: Compilación CUDA (sin GPU)
     runs-on: ubuntu-latest

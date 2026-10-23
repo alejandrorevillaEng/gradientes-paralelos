@@ -1,0 +1,65 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "CON_CUDA": "OFF" }
+    },
+    {
+      "name": "release",
+      "displayName": "Release (CPU)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug con avisos como errores",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "CMAKE_C_FLAGS": "-Werror" }
+    },
+    {
+      "name": "sanitizers",
+      "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CON_PYTHON": "OFF",
+        "CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+      }
+    },
+    {
+      "name": "cobertura",
+      "displayName": "Cobertura con gcov",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "CMAKE_C_FLAGS": "--coverage" }
+    },
+    {
+      "name": "cuda",
+      "displayName": "Release con CUDA (GPU de esta máquina)",
+      "inherits": "release",
+      "cacheVariables": { "CON_CUDA": "ON" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "release" },
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "sanitizers", "configurePreset": "sanitizers" },
+    { "name": "cobertura", "configurePreset": "cobertura" },
+    { "name": "cuda", "configurePreset": "cuda" }
+  ],
+  "testPresets": [
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
+    {
+      "name": "sanitizers",
+      "configurePreset": "sanitizers",
+      "output": { "outputOnFailure": true },
+      "environment": { "ASAN_OPTIONS": "detect_leaks=1", "UBSAN_OPTIONS": "print_stacktrace=1" }
+    },
+    { "name": "cobertura", "configurePreset": "cobertura", "output": { "outputOnFailure": true } },
+    { "name": "cuda", "configurePreset": "cuda", "output": { "outputOnFailure": true } }
+  ]
+}

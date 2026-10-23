@@ -1,0 +1,50 @@
+# Al subir una etiqueta vX.Y.Z: compila y prueba en Linux y publica en GitHub Releases
+# los ejecutables, la biblioteca compartida con el paquete de Python y las notas del CHANGELOG.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publicar:
+    name: Binarios de Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Comprobar la etiqueta
+        run: '[[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Etiqueta no válida: $GITHUB_REF_NAME"; exit 1; }'
+
+      - name: Compilar y probar
+        run: |
+          cmake --preset release
+          cmake --build --preset release -j
+          ctest --preset release
+
+      - name: Empaquetar
+        run: |
+          paquete="gradientes-${GITHUB_REF_NAME#v}-linux-x86_64"
+          mkdir -p "$paquete/bin" "$paquete/lib" "$paquete/python"
+          cp build/release/gradbench build/release/sistema_demo "$paquete/bin/"
+          cp build/release/libgradientes.so "$paquete/lib/"
+          cp -r python/gradientes "$paquete/python/"
+          cp -r include README.md LICENSE CHANGELOG.md "$paquete/"
+          tar -czf "$paquete.tar.gz" "$paquete"
+          sha256sum "$paquete.tar.gz" > "$paquete.tar.gz.sha256"
+          echo "PAQUETE=$paquete" >> "$GITHUB_ENV"
+
+      - name: Release en GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" 'index($0, "## [" v "]") == 1 {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > notas.md
+          gh release create "$GITHUB_REF_NAME" "$PAQUETE.tar.gz" "$PAQUETE.tar.gz.sha256" \
+            --title "$GITHUB_REF_NAME" --notes-file notas.md
