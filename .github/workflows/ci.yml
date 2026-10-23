@@ -62,4 +62,5 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r bench/requirements.txt
-      - run: python bench/graficas.py --cpu resultados/cpu_ryzen7700x.csv --salida /tmp/graficas
+      - run: python bench/graficas.py --cpu resultados/cpu_ryzen7700x.csv --gpu resultados/gpu_rtx5070.csv --salida /tmp/graficas
+      - run: python bench/pagina.py --cpu resultados/cpu_ryzen7700x.csv --gpu resultados/gpu_rtx5070.csv --salida /tmp/datos.js

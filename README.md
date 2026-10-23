@@ -6,7 +6,9 @@ Cálculo numérico del gradiente de funciones multivariables, y de la jacobiana 
 [![Seguridad](https://github.com/alejandrorevillaEng/gradientes-paralelos/actions/workflows/seguridad.yml/badge.svg)](https://github.com/alejandrorevillaEng/gradientes-paralelos/actions/workflows/seguridad.yml)
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue.svg)](LICENSE)
 
-![Escalabilidad con el número de hilos](docs/img/cpu_escalado.png)
+[![Página de resultados](docs/img/portada.jpg)](https://alejandrorevillaeng.github.io/gradientes-paralelos/)
+
+Los resultados se pueden explorar en una [página interactiva](https://alejandrorevillaeng.github.io/gradientes-paralelos/) (`docs/index.html`), generada a partir de los mismos CSV con `python bench/pagina.py`.
 
 ## Por qué existe
 
@@ -34,6 +36,8 @@ Es la práctica final de Programación Paralela (Grado en Ingeniería Informáti
 Los datos de prueba salen de un generador propio (splitmix64) con semilla fija, porque `rand()` no da la misma secuencia en Linux y en Windows. Los tiempos usan un reloj de alta resolución y la mediana de varias repeticiones; si una ejecución dura menos de 50 ms se repite en bucle para no medir solo el ruido del reloj.
 
 ## Resultados en CPU
+
+![Escalabilidad con el número de hilos](docs/img/cpu_escalado.png)
 
 Medidos en un AMD Ryzen 7 7700X (8 núcleos, 16 hilos) con GCC 16 en Windows, 500 variables y 20.000 términos, mediana de 5 repeticiones. Los datos están en [resultados/](resultados/).
 

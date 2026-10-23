@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gradientes en paralelo · C, OpenMP y CUDA</title>
+<meta name="description" content="Cálculo de gradientes y jacobianas en C con OpenMP y CUDA: resultados medidos en un Ryzen 7 7700X y una RTX 5070.">
+<meta property="og:title" content="Gradientes en paralelo">
+<meta property="og:description" content="C, OpenMP y CUDA con benchmarks reproducibles: de 8,9x con 16 hilos a ≈470x cambiando el algoritmo.">
+<meta property="og:image" content="https://alejandrorevillaeng.github.io/gradientes-paralelos/img/portada.jpg">
+<meta name="theme-color" content="#111110">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111110'/%3E%3Cpath d='M8 22 16 8l8 14' fill='none' stroke='%233987e5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5.2.8/index.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono@5.2.7/index.min.css">
+<style>
+  :root {
+    --fondo: #111110;
+    --superficie: #1a1a19;
+    --superficie-2: #212120;
+    --texto: #f0efec;
+    --texto-suave: #c3c2b7;
+    --texto-tenue: #8d8b83;
+    --rejilla: #2e2d2a;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --acento: #6fb1ff;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 16px/1.6 "Geist Variable", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--acento); text-underline-offset: 3px; }
+  .mono { font-family: "Geist Mono Variable", ui-monospace, monospace; }
+  .envoltura { max-width: 1120px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px); }
+
+  /* Portada */
+  .portada { position: relative; min-height: min(92dvh, 860px); display: grid; align-items: end; overflow: hidden; border-bottom: 1px solid var(--rejilla); }
+  #campo { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .portada::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(17 17 16 / 0) 0%, rgb(17 17 16 / .35) 50%, var(--fondo) 100%), linear-gradient(90deg, rgb(17 17 16 / .7) 0%, rgb(17 17 16 / 0) 65%); pointer-events: none; }
+  .portada .envoltura { position: relative; z-index: 1; padding-bottom: clamp(40px, 8vh, 88px); }
+  .etiqueta { display: inline-flex; gap: .5rem; align-items: center; font-size: .85rem; color: var(--texto-suave); border: 1px solid var(--rejilla); background: rgb(26 26 25 / .7); backdrop-filter: blur(6px); padding: .3rem .75rem; border-radius: 999px; }
+  .etiqueta i { width: 7px; height: 7px; border-radius: 50%; background: var(--s3); box-shadow: 0 0 10px var(--s3); }
+  h1 { font-size: clamp(2.6rem, 1.6rem + 5vw, 5.6rem); line-height: .95; letter-spacing: -0.05em; font-weight: 650; margin: 1.1rem 0 1rem; max-width: 12ch; text-wrap: balance; }
+  .entradilla { font-size: clamp(1.05rem, .95rem + .5vw, 1.3rem); color: var(--texto-suave); max-width: 58ch; margin: 0 0 1.75rem; }
+  .botones { display: flex; flex-wrap: wrap; gap: .75rem; }
+  .boton { display: inline-flex; align-items: center; gap: .5rem; padding: .7rem 1.15rem; border-radius: 11px; font-weight: 600; text-decoration: none; transition: transform .2s, background-color .2s; }
+  .boton.principal { background: var(--texto); color: var(--fondo); }
+  .boton.secundario { color: var(--texto); border: 1px solid var(--rejilla); background: rgb(26 26 25 / .7); }
+  .boton:hover { transform: translateY(-2px); }
+
+  /* Cifras */
+  .cifras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--rejilla); border: 1px solid var(--rejilla); border-radius: 18px; overflow: hidden; margin: 56px 0 24px; }
+  .cifra { background: var(--superficie); padding: 22px 22px 24px; }
+  .cifra b { display: block; font-size: clamp(2rem, 1.5rem + 1.6vw, 2.8rem); letter-spacing: -0.04em; line-height: 1; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .cifra span { display: block; margin-top: .55rem; color: var(--texto-suave); font-size: .92rem; }
+
+  section { padding: 72px 0 8px; }
+  .antetitulo { color: var(--texto-tenue); font-size: .85rem; letter-spacing: .02em; }
+  h2 { font-size: clamp(1.7rem, 1.3rem + 1.5vw, 2.5rem); letter-spacing: -0.04em; line-height: 1.05; font-weight: 650; margin: .4rem 0 1rem; max-width: 22ch; text-wrap: balance; }
+  section p { color: var(--texto-suave); max-width: 64ch; }
+  .rejilla-2 { display: grid; grid-template-columns: 1fr 1.25fr; gap: clamp(24px, 4vw, 56px); align-items: center; }
+  .rejilla-2.inversa { grid-template-columns: 1.25fr 1fr; }
+
+  /* Historia del 173x */
+  .error-cifra { display: flex; align-items: baseline; gap: clamp(16px, 3vw, 40px); flex-wrap: wrap; margin: 12px 0 8px; }
+  .error-cifra .mal { position: relative; font-size: clamp(3rem, 2rem + 5vw, 6rem); font-weight: 700; letter-spacing: -0.05em; color: var(--texto-tenue); line-height: 1; }
+  .error-cifra .mal::after { content: ""; position: absolute; left: -4%; right: -4%; top: 52%; height: 6px; background: var(--s2); border-radius: 3px; transform: rotate(-7deg) scaleX(var(--tachado, 1)); transform-origin: left; transition: transform 1s cubic-bezier(.2,.8,.2,1); }
+  .error-cifra .bien { font-size: clamp(3rem, 2rem + 5vw, 6rem); font-weight: 700; letter-spacing: -0.05em; line-height: 1; }
+  .division { font-size: 1.05rem; color: var(--texto-suave); }
+
+  /* Gráficas */
+  .tarjeta { background: var(--superficie); border: 1px solid var(--rejilla); border-radius: 18px; padding: 18px 18px 10px; }
+  .tarjeta h3 { margin: 0 0 2px; font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  .tarjeta .nota { margin: 0 0 8px; color: var(--texto-tenue); font-size: .85rem; }
+  .leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 4px; font-size: .85rem; color: var(--texto-suave); }
+  .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .leyenda i { width: 10px; height: 10px; border-radius: 3px; }
+  .grafica { position: relative; }
+  .grafica svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .grafica text { fill: var(--texto-tenue); font: 12px "Geist Mono Variable", monospace; }
+  .grafica .eje-titulo { fill: var(--texto-tenue); font: 12px "Geist Variable", sans-serif; }
+  .info { position: absolute; pointer-events: none; background: #262624; border: 1px solid #3a3936; border-radius: 10px; padding: 8px 10px; font-size: .82rem; color: var(--texto); white-space: nowrap; opacity: 0; transform: translate(-50%, calc(-100% - 12px)); transition: opacity .12s; box-shadow: 0 12px 30px -10px #000; z-index: 2; }
+  .info b { font-variant-numeric: tabular-nums; }
+  .info .fila { display: flex; align-items: center; gap: 6px; }
+  .info i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+  .metodos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
+  .metodo { background: var(--superficie); border: 1px solid var(--rejilla); border-radius: 16px; padding: 20px; }
+  .metodo h3 { margin: 0 0 .4rem; font-size: 1.05rem; }
+  .metodo p { margin: 0; font-size: .95rem; }
+  .formula { font-family: "Geist Mono Variable", monospace; font-size: clamp(.95rem, .8rem + .6vw, 1.25rem); color: var(--texto); background: var(--superficie-2); border: 1px solid var(--rejilla); border-radius: 14px; padding: 16px 18px; overflow-x: auto; white-space: nowrap; }
+  .formula em { color: var(--s1); font-style: normal; }
+
+  footer { margin-top: 96px; border-top: 1px solid var(--rejilla); padding: 28px 0 40px; color: var(--texto-tenue); font-size: .9rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+  .aparece { opacity: 0; transform: translateY(18px); transition: opacity .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1); }
+  .aparece.visible { opacity: 1; transform: none; }
+
+  @media (max-width: 860px) {
+    .cifras { grid-template-columns: 1fr 1fr; }
+    .rejilla-2, .rejilla-2.inversa, .metodos { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aparece { opacity: 1; transform: none; transition: none; }
+    .error-cifra .mal::after { transition: none; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header class="portada">
+  <canvas id="campo" aria-hidden="true"></canvas>
+  <div class="envoltura">
+    <span class="etiqueta"><i></i> C · OpenMP · CUDA · medido en un Ryzen 7 7700X y una RTX 5070</span>
+    <h1>Gradientes en paralelo</h1>
+    <p class="entradilla">El gradiente es la base de casi cualquier método de optimización y del entrenamiento de redes neuronales. Este proyecto lo calcula, y también la jacobiana de sistemas de ecuaciones, en CPU y GPU, y comprueba cada resultado contra la derivada exacta.</p>
+    <div class="botones">
+      <a class="boton principal" href="https://github.com/alejandrorevillaEng/gradientes-paralelos">Ver el código</a>
+      <a class="boton secundario" href="#resultados">Resultados ↓</a>
+    </div>
+  </div>
+</header>
+
+<main class="envoltura">
+  <div class="cifras aparece" id="cifras"></div>
+
+  <section class="aparece" id="historia">
+    <span class="antetitulo">Lo que aprendí rehaciéndola</span>
+    <h2>Mi memoria decía que la GPU iba 173 veces más rápida.</h2>
+    <div class="error-cifra"><span class="mal" id="mal">173,7x</span><span class="bien">≈32x</span></div>
+    <p class="division mono">509 ms (secuencial) ÷ 15,96 ms (GPU) ≈ 32</p>
+    <p>Comparaba el tiempo de cinco ejecuciones en CPU con una sola en GPU. Al rehacer la práctica lo medí bien, separé las copias del cálculo y añadí la validación contra el gradiente analítico. Los demás errores que encontré (código que no compilaba, un paralelismo anidado que lanzaba 16 hilos en vez de 4) están en el repositorio.</p>
+  </section>
+
+  <section id="resultados">
+    <div class="rejilla-2">
+      <div class="aparece">
+        <span class="antetitulo">CPU · OpenMP</span>
+        <h2>Casi lineal hasta los 8 núcleos físicos</h2>
+        <p>Repartir las 500 variables entre hilos escala bien mientras cada hilo tiene un núcleo propio. A partir de 8 los hilos comparten núcleo y la ganancia se frena.</p>
+      </div>
+      <div class="tarjeta aparece"><h3>Speed-up frente al número de hilos</h3><p class="nota">500 variables, 20.000 términos · mediana de 5 repeticiones</p><div class="grafica" id="g-escalado"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rejilla-2 inversa">
+      <div class="tarjeta aparece"><h3>Paralelismo anidado: cómo repartir 16 hilos</h3><p class="nota">Hilos externos × internos · speed-up frente al secuencial</p><div class="grafica" id="g-anidado"></div></div>
+      <div class="aparece">
+        <span class="antetitulo">CPU · paralelismo anidado</span>
+        <h2>Más niveles de hilos no es más rápido</h2>
+        <p>Cada evaluación del polinomio abría su propio equipo de hilos, mil veces por gradiente. Con todo el paralelismo en el bucle interno va seis veces más lento que el secuencial. Con 16 hilos en cada nivel, lo que pasaba sin querer en la entrega, se queda en 0,26x.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rejilla-2">
+      <div class="aparece">
+        <span class="antetitulo">El cambio que más ganó</span>
+        <h2>Cambiar el algoritmo ganó más que paralelizar</h2>
+        <p>Como la función es una suma de términos, la diferencia centrada de la suma es la suma de las diferencias. Un término que no contiene la variable aporta cero, así que solo hay que recalcular los que la contienen. Además es más preciso, porque no resta dos números enormes.</p>
+      </div>
+      <div class="tarjeta aparece"><h3>Método directo frente a método por términos</h3><p class="nota">Tiempo en ms, escala logarítmica</p><div class="grafica" id="g-metodos"></div></div>
+    </div>
+    <div class="metodos aparece">
+      <div class="metodo"><h3>Directo</h3><p class="formula">∂f/∂x<em>ᵢ</em> ≈ ( f(x + h·e<em>ᵢ</em>) − f(x − h·e<em>ᵢ</em>) ) / 2h</p><p>2n evaluaciones del polinomio entero. Sirve para cualquier función, no solo polinomios.</p></div>
+      <div class="metodo"><h3>Por términos</h3><p class="formula">∂f/∂x<em>ᵢ</em> ≈ Σ<sub>t ∋ xᵢ</sub> ( t(x + h·e<em>ᵢ</em>) − t(x − h·e<em>ᵢ</em>) ) / 2h</p><p>Un recorrido por los términos. En la GPU, un hilo por término con <span class="mono">atomicAdd</span>.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rejilla-2 inversa">
+      <div class="tarjeta aparece"><h3>Kernels CUDA según el tamaño de bloque</h3><p class="nota">Tiempo del kernel en ms, escala logarítmica · 500 variables</p><div class="grafica" id="g-bloques"></div></div>
+      <div class="aparece">
+        <span class="antetitulo">GPU · RTX 5070</span>
+        <h2>Cuatro kernels, del original al que no recorre lo que no toca</h2>
+        <p>El kernel de la práctica tarda 15 ms. Sumar solo los términos que contienen la variable lo baja a 6,6 ms, cargarlos por bloques en memoria compartida (tiling) a 4,5 ms y el kernel por términos a 0,14 ms. Con solo 500 hilos, los bloques grandes dejan la GPU casi vacía.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="rejilla-2">
+      <div class="aparece">
+        <span class="antetitulo">CPU frente a GPU</span>
+        <h2>La GPU necesita trabajo para lucirse</h2>
+        <p>Con 500 variables la diferencia es pequeña. Al subir a 32.000 el tiempo de OpenMP crece en proporción y el de la GPU apenas cambia, porque por fin hay hilos para llenar sus 48 multiprocesadores: el kernel con tiling va unas 200 veces más rápido que la CPU con 16 hilos.</p>
+      </div>
+      <div class="tarjeta aparece"><h3>Tiempo total al crecer el número de variables</h3><p class="nota">20.000 términos · escala logarítmica en los dos ejes</p><div class="grafica" id="g-escala-gpu"></div></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Alejandro Revilla Blanco · <a href="https://github.com/alejandrorevillaEng/gradientes-paralelos">código en GitHub</a> · licencia MIT</span>
+    <span id="equipo"></span>
+  </footer>
+</main>
+
+<script src="datos.js"></script>
+<script>
+(() => {
+  const D = window.DATOS;
+  const C = getComputedStyle(document.documentElement);
+  const color = (v) => C.getPropertyValue(v).trim();
+  const SERIES = ['--s1', '--s2', '--s3', '--s4'].map(color);
+  const fmt = (v, d = 1) => v.toLocaleString('es-ES', { maximumFractionDigits: d, minimumFractionDigits: 0, useGrouping: 'always' });
+  /* Máximo y paso "redondos" (1, 2 o 5 por potencia de 10) para las marcas del eje. */
+  const redondo = (max) => { const bruto = max / 4, p = Math.pow(10, Math.floor(Math.log10(bruto))); const paso = [1, 2, 5, 10].map((m) => m * p).find((x) => x >= bruto); return { max: Math.ceil(max / paso) * paso, paso }; };
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}, padre) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (padre) padre.appendChild(n); return n; };
+
+  /* Gráfica genérica de líneas o barras, con información al pasar el ratón. */
+  function grafica(id, cfg) {
+    const caja = document.getElementById(id);
+    const W = 640, H = 340, M = { i: 56, d: 16, s: 14, b: 44 };
+    const ley = document.createElement('div'); ley.className = 'leyenda';
+    if (cfg.series.length > 1) {
+      cfg.series.forEach((s, k) => { const e = document.createElement('span'); e.innerHTML = `<i style="background:${s.color || SERIES[k]}"></i>`; e.append(s.nombre); ley.appendChild(e); });
+      caja.appendChild(ley);
+    }
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': cfg.titulo });
+    caja.appendChild(svg);
+    const info = document.createElement('div'); info.className = 'info'; caja.appendChild(info);
+    const xs = cfg.categorias;
+    const todos = cfg.series.flatMap((s) => s.valores.filter((v) => v != null));
+    const ymin = cfg.ylog ? Math.pow(10, Math.floor(Math.log10(Math.min(...todos)))) : 0;
+    const lin = redondo(cfg.ymax || Math.max(...todos) * 1.08);
+    const ymax = cfg.ylog ? Math.pow(10, Math.ceil(Math.log10(Math.max(...todos)))) : lin.max;
+    const ty = (v) => { const p = cfg.ylog ? (Math.log10(v) - Math.log10(ymin)) / (Math.log10(ymax) - Math.log10(ymin)) : (v - ymin) / (ymax - ymin); return H - M.b - p * (H - M.s - M.b); };
+    const banda = (W - M.i - M.d) / xs.length;
+    const tx = (k) => M.i + banda * (k + .5);
+    const rej = el('g', {}, svg);
+    const marcas = cfg.ylog ? (() => { const r = []; for (let e = Math.log10(ymin); e <= Math.log10(ymax); e++) r.push(Math.pow(10, e)); return r; })()
+                            : Array.from({ length: Math.round(ymax / lin.paso) + 1 }, (_, i) => i * lin.paso);
+    marcas.forEach((m) => {
+      el('line', { x1: M.i, x2: W - M.d, y1: ty(m), y2: ty(m), stroke: color('--rejilla'), 'stroke-width': 1 }, rej);
+      el('text', { x: M.i - 8, y: ty(m) + 4, 'text-anchor': 'end' }, rej).textContent = cfg.formatoEje ? cfg.formatoEje(m) : fmt(m, 1);
+    });
+    xs.forEach((x, k) => { el('text', { x: tx(k), y: H - M.b + 20, 'text-anchor': 'middle' }, rej).textContent = x; });
+    if (cfg.ejeX) el('text', { x: (W + M.i) / 2, y: H - 6, 'text-anchor': 'middle', class: 'eje-titulo' }, rej).textContent = cfg.ejeX;
+    if (cfg.referencia) {
+      const r = cfg.referencia; const p = r.valores.map((v, k) => `${tx(k)},${ty(v)}`).join(' ');
+      el('polyline', { points: p, fill: 'none', stroke: color('--texto-tenue'), 'stroke-width': 1.5, 'stroke-dasharray': '5 5' }, svg);
+    }
+    const capas = [];
+    if (cfg.tipo === 'barras') {
+      const s = cfg.series[0]; const ancho = Math.min(56, banda * .6);
+      s.valores.forEach((v, k) => {
+        const y = ty(v), x = tx(k) - ancho / 2, base = ty(cfg.ylog ? ymin : 0);
+        const c = (cfg.colorBarra && cfg.colorBarra(k)) || SERIES[0];
+        const r = el('path', { d: `M${x},${base} V${y + 4} q0,-4 4,-4 h${ancho - 8} q4,0 4,4 V${base} Z`, fill: c }, svg);
+        const t = el('text', { x: tx(k), y: y - 8, 'text-anchor': 'middle', style: `fill:${color('--texto')}` }, svg); t.textContent = cfg.etiquetaBarra(v, k);
+        capas.push({ k, x: tx(k), y, nodos: [r] });
+      });
+    } else {
+      cfg.series.forEach((s, j) => {
+        const c = s.color || SERIES[j];
+        const p = s.valores.map((v, k) => v == null ? null : `${tx(k)},${ty(v)}`).filter(Boolean).join(' ');
+        el('polyline', { points: p, fill: 'none', stroke: c, 'stroke-width': 2.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+        s.valores.forEach((v, k) => { if (v != null) el('circle', { cx: tx(k), cy: ty(v), r: 4.5, fill: c, stroke: color('--superficie'), 'stroke-width': 2 }, svg); });
+      });
+      xs.forEach((_, k) => capas.push({ k, x: tx(k), y: Math.min(...cfg.series.map((s) => s.valores[k] == null ? H : ty(s.valores[k]))) }));
+    }
+    const guia = el('line', { y1: M.s, y2: H - M.b, stroke: color('--texto-tenue'), 'stroke-width': 1, opacity: 0 }, svg);
+    const zona = el('rect', { x: M.i, y: 0, width: W - M.i - M.d, height: H - M.b, fill: 'transparent' }, svg);
+    const mostrar = (ev) => {
+      const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) * W / r.width;
+      const k = Math.max(0, Math.min(xs.length - 1, Math.floor((px - M.i) / banda)));
+      const capa = capas[k];
+      if (cfg.tipo !== 'barras') { guia.setAttribute('x1', capa.x); guia.setAttribute('x2', capa.x); guia.setAttribute('opacity', .6); }
+      info.innerHTML = `<div class="mono" style="color:var(--texto-tenue);margin-bottom:4px">${cfg.tituloInfo ? cfg.tituloInfo(xs[k], k) : xs[k]}</div>` +
+        cfg.series.map((s, j) => s.valores[k] == null ? '' : `<div class="fila"><i style="background:${(cfg.tipo === 'barras' && cfg.colorBarra && cfg.colorBarra(k)) || s.color || SERIES[j]}"></i>${s.nombre}: <b>${cfg.formatoInfo(s.valores[k], k)}</b></div>`).join('');
+      info.style.left = `${capa.x * r.width / W}px`; info.style.top = `${capa.y * r.height / H}px`; info.style.opacity = 1;
+    };
+    zona.addEventListener('pointermove', mostrar);
+    zona.addEventListener('pointerleave', () => { info.style.opacity = 0; guia.setAttribute('opacity', 0); });
+  }
+
+  const cpu = D.cpu, gpu = D.gpu;
+  const de = (exp) => cpu.filter((f) => f.experimento === exp);
+  const veces = (v) => `${fmt(v, v < 10 ? 2 : 1)}x`;
+  const SUPER = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+  const cientifica = (v) => { const [m, e] = v.toExponential(0).split('e'); return `${m}·10${[...String(Number(e))].map((c) => SUPER[c]).join('')}`; };
+  const ms = (v) => `${fmt(v, v < 1 ? 2 : 1)} ms`;
+
+  /* Cifras de cabecera, calculadas de los datos. */
+  const esc = de('escalado').filter((f) => f.metodo === 'omp_nivel1');
+  const maxHilos = esc[esc.length - 1];
+  const met = de('metodos');
+  const ganaTerminos = met.find((f) => f.metodo === 'directo_sec').tiempo_s / met.find((f) => f.metodo === 'por_terminos_sec').tiempo_s;
+  const grande = gpu.filter((f) => f.vars === Math.max(...gpu.map((g) => g.vars)) && f.kernel === 'directo_tiled');
+  const mejorGrande = grande.reduce((a, b) => (a.total_ms < b.total_ms ? a : b));
+  const errMax = Math.max(...gpu.filter((f) => f.kernel !== 'directo_original').map((f) => f.error_rel));
+  const cifras = [
+    [`${fmt(maxHilos.speedup, 1)}x`, `con ${maxHilos.hilos_ext} hilos de CPU (OpenMP)`],
+    [`≈${fmt(Math.round(ganaTerminos / 10) * 10, 0)}x`, 'cambiando el algoritmo, sin más hilos'],
+    [`≈${fmt(Math.round(mejorGrande.speedup_vs_omp / 10) * 10, 0)}x`, `GPU frente a 16 hilos con ${fmt(mejorGrande.vars, 0)} variables`],
+    [cientifica(errMax), 'error relativo máximo frente a la derivada exacta'],
+  ];
+  document.getElementById('cifras').innerHTML = cifras.map(([v, t]) => `<div class="cifra"><b>${v}</b><span>${t}</span></div>`).join('');
+  document.getElementById('equipo').textContent = `${D.equipo.cpu} · ${D.equipo.gpu}`;
+
+  grafica('g-escalado', {
+    titulo: 'Speed-up frente al número de hilos', categorias: esc.map((f) => String(f.hilos_ext)), ejeX: 'Hilos',
+    series: [{ nombre: 'OpenMP', valores: esc.map((f) => f.speedup) }],
+    referencia: { valores: esc.map((f) => f.hilos_ext) }, ymax: 16,
+    formatoInfo: veces, tituloInfo: (x) => `${x} hilos (la línea discontinua es el ideal)`, formatoEje: (m) => `${fmt(m, 0)}x`,
+  });
+
+  const an = de('anidado').filter((f) => f.metodo !== 'secuencial');
+  grafica('g-anidado', {
+    tipo: 'barras', titulo: 'Repartos de hilos', categorias: an.map((f) => `${f.hilos_ext}×${f.hilos_int}`), ejeX: 'Hilos externos × internos',
+    series: [{ nombre: 'Speed-up', valores: an.map((f) => f.speedup) }],
+    colorBarra: (k) => (an[k].metodo.endsWith('sobresuscrito') ? SERIES[1] : SERIES[0]),
+    etiquetaBarra: (v) => veces(v), formatoInfo: veces, formatoEje: (m) => `${fmt(m, 0)}x`,
+    tituloInfo: (x, k) => (an[k].metodo.endsWith('sobresuscrito') ? `${x}: 256 hilos a la vez` : `${x} = 16 hilos`),
+  });
+
+  const nombresMetodo = { directo_sec: 'Directo', directo_omp: 'Directo, 16 hilos', por_terminos_sec: 'Por términos', por_terminos_omp: 'Por términos, 16 hilos' };
+  grafica('g-metodos', {
+    tipo: 'barras', ylog: true, titulo: 'Directo frente a por términos', categorias: met.map((f) => nombresMetodo[f.metodo] || f.metodo),
+    series: [{ nombre: 'Tiempo', valores: met.map((f) => f.tiempo_s * 1000) }],
+    colorBarra: (k) => (met[k].metodo.startsWith('por_terminos') ? SERIES[2] : SERIES[0]),
+    etiquetaBarra: (v) => ms(v), formatoInfo: ms, formatoEje: (m) => (m < 1 ? fmt(m, 2) : fmt(m, 0)),
+  });
+
+  const base = gpu.filter((f) => f.experimento === 'base');
+  const kernels = [...new Set(base.map((f) => f.kernel))];
+  const bloques = [...new Set(base.map((f) => f.bloque))].sort((a, b) => a - b);
+  grafica('g-bloques', {
+    ylog: true, titulo: 'Kernels según el tamaño de bloque', categorias: bloques.map(String), ejeX: 'Hilos por bloque',
+    series: kernels.map((k) => ({ nombre: { directo_original: 'Original', directo: 'Directo', directo_tiled: 'Tiling', por_terminos: 'Por términos' }[k] || k, valores: bloques.map((b) => (base.find((f) => f.kernel === k && f.bloque === b) || {}).kernel_ms) })),
+    formatoInfo: ms, tituloInfo: (x) => `bloques de ${x} hilos`, formatoEje: (m) => (m < 1 ? fmt(m, 2) : fmt(m, 0)),
+  });
+
+  const varsLista = [...new Set(gpu.filter((f) => f.experimento !== 'jacobiana').map((f) => f.vars))].sort((a, b) => a - b);
+  const mejor = (k, v) => { const filas = gpu.filter((f) => f.kernel === k && f.vars === v && f.experimento !== 'jacobiana'); return filas.length ? Math.min(...filas.map((f) => f.total_ms)) : null; };
+  const omp = varsLista.map((v) => { const f = gpu.find((g) => g.vars === v && g.experimento !== 'jacobiana'); return f.total_ms * f.speedup_vs_omp; });
+  grafica('g-escala-gpu', {
+    ylog: true, titulo: 'CPU frente a GPU', categorias: varsLista.map((v) => fmt(v, 0)), ejeX: 'Variables',
+    series: [
+      { nombre: 'CPU, 16 hilos', valores: omp, color: color('--texto-suave') },
+      { nombre: 'GPU original', valores: varsLista.map((v) => mejor('directo_original', v)), color: SERIES[0] },
+      { nombre: 'GPU tiling', valores: varsLista.map((v) => mejor('directo_tiled', v)), color: SERIES[1] },
+      { nombre: 'GPU por términos', valores: varsLista.map((v) => mejor('por_terminos', v)), color: SERIES[2] },
+    ],
+    formatoInfo: ms, tituloInfo: (x) => `${x} variables`, formatoEje: (m) => (m < 1 ? fmt(m, 1) : fmt(m, 0)),
+  });
+
+  /* Apariciones al hacer scroll y el tachado del 173x. */
+  const obs = new IntersectionObserver((ent) => ent.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } }), { threshold: .15 });
+  document.querySelectorAll('.aparece').forEach((n) => obs.observe(n));
+  const mal = document.getElementById('mal'); mal.style.setProperty('--tachado', 0);
+  new IntersectionObserver((ent, o) => ent.forEach((e) => { if (e.isIntersecting) { setTimeout(() => mal.style.setProperty('--tachado', 1), 350); o.disconnect(); } }), { threshold: .6 }).observe(mal);
+
+  /* Portada: partículas que bajan por el gradiente de f(x, y) = sin(0,8x)·cos(0,6y) + 0,3·sin(0,5x + 0,7y). */
+  const lienzo = document.getElementById('campo'); const g = lienzo.getContext('2d');
+  const quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let w, h, dpr, puntos = [];
+  const grad = (x, y) => [0.8 * Math.cos(0.8 * x) * Math.cos(0.6 * y) + 0.15 * Math.cos(0.5 * x + 0.7 * y),
+                          -0.6 * Math.sin(0.8 * x) * Math.sin(0.6 * y) + 0.21 * Math.cos(0.5 * x + 0.7 * y)];
+  const escala = 90;
+  const nuevo = () => ({ x: Math.random() * w, y: Math.random() * h, vida: 60 + Math.random() * 140, c: Math.random() < .5 ? SERIES[0] : SERIES[2] });
+  function medir() {
+    dpr = Math.min(2, devicePixelRatio || 1); w = lienzo.clientWidth; h = lienzo.clientHeight;
+    lienzo.width = w * dpr; lienzo.height = h * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    puntos = Array.from({ length: Math.round(w * h / 900) }, nuevo);
+    g.fillStyle = color('--fondo'); g.fillRect(0, 0, w, h);
+  }
+  function paso() {
+    g.fillStyle = 'rgba(17,17,16,0.035)'; g.fillRect(0, 0, w, h);
+    g.lineWidth = 1.6;
+    for (const p of puntos) {
+      const [gx, gy] = grad(p.x / escala, p.y / escala);
+      const nx = p.x - gx * 2.2, ny = p.y - gy * 2.2;
+      g.strokeStyle = p.c; g.globalAlpha = .8;
+      g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(nx, ny); g.stroke();
+      p.x = nx; p.y = ny; p.vida--;
+      if (p.vida < 0 || p.x < 0 || p.y < 0 || p.x > w || p.y > h || Math.hypot(gx, gy) < .02) Object.assign(p, nuevo());
+    }
+    g.globalAlpha = 1;
+  }
+  /* Se precalcula un rato para que la portada no aparezca vacía. */
+  const precalcular = () => { for (let i = 0; i < 140; i++) paso(); };
+  medir(); precalcular(); addEventListener('resize', () => { medir(); precalcular(); });
+  if (quieto) { /* Con movimiento reducido el campo se queda quieto. */ }
+  else { const bucle = () => { paso(); requestAnimationFrame(bucle); }; bucle(); }
+})();
+</script>
+</body>
+</html>
