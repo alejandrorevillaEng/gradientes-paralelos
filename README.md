@@ -21,6 +21,8 @@ Es la práctica final de Programación Paralela (Grado en Ingeniería Informáti
 - Paralelismo de un nivel y anidado, con todos los repartos de hilos entre el bucle externo y el interno.
 - Cuatro kernels CUDA, con memoria fijada, desglose de tiempos (copias y kernel) y barrido de tamaños de bloque.
 - Sistemas de ecuaciones polinómicas: jacobiana en paralelo y Newton-Raphson amortiguado con eliminación gaussiana. Resuelve el sistema de ejemplo del enunciado.
+- Comparación del mismo kernel en FP64 y FP32, con el error de cada uno.
+- Bindings de Python: la biblioteca de C se usa desde Python con `ctypes`, sin compilar extensiones.
 - Validación de cada resultado frente al gradiente analítico y CSV con todas las medidas.
 
 ## Stack y decisiones técnicas
@@ -30,7 +32,9 @@ Es la práctica final de Programación Paralela (Grado en Ingeniería Informáti
 | Cálculo | C11 | Lo pedía la asignatura y deja ver el coste real de cada acceso a memoria |
 | CPU | OpenMP | Paraleliza bucles con directivas; la reducción de arrays (`reduction(+:grad[0:n])`) evita los `atomic` en el método por términos |
 | GPU | CUDA (C++17) | Los polinomios van en arrays planos para copiarlos con un `cudaMemcpy` por array y que los hilos lean posiciones contiguas |
-| Compilación | CMake | Detecta OpenMP y, si hay `nvcc`, compila también la versión CUDA para la GPU de la máquina |
+| Compilación | CMake con presets | Detecta OpenMP y, si hay `nvcc`, compila también la versión CUDA para la GPU de la máquina. Los presets dejan listas las configuraciones de release, sanitizers y cobertura |
+| Python | `ctypes` | La misma biblioteca compilada como `.so`/`.dll`. Sin dependencias ni pasos de compilación extra, y sirve para comparar con NumPy o usarla desde un notebook |
+| Reproducibilidad | Docker | El benchmark de CPU con el mismo compilador y las mismas opciones en cualquier máquina |
 | Gráficas | Python y matplotlib | Se generan siempre a partir de los CSV, así cualquiera puede repetirlas con sus propios datos |
 
 Los datos de prueba salen de un generador propio (splitmix64) con semilla fija, porque `rand()` no da la misma secuencia en Linux y en Windows. Los tiempos usan un reloj de alta resolución y la mediana de varias repeticiones; si una ejecución dura menos de 50 ms se repite en bucle para no medir solo el ruido del reloj.
@@ -83,23 +87,63 @@ Por el mismo motivo, con 500 variables van mejor los bloques pequeños: con bloq
 
 En el kernel por términos el cálculo dura 0,04 ms y la copia de los datos a la GPU tarda más que el propio cálculo. Lo mismo pasa con la jacobiana de un sistema de 2.000 ecuaciones: el kernel tarda 0,11 ms, pero devolver la matriz de 32 MB a la CPU cuesta 2,3 ms, y en total la GPU (3,5 ms) pierde frente a OpenMP. Para que compense, el resultado tendría que quedarse en la GPU (por ejemplo, resolviendo allí también el paso de Newton).
 
+### Doble frente a simple precisión
+
+Las GeForce tienen muy pocas unidades de doble precisión, así que esperaba que pasar el kernel a FP32 lo acelerara mucho. Lo medí con 8.000 variables, 20.000 términos y exponentes hasta 3:
+
+| Tipo | Paso h | Kernel | Error relativo |
+|---|---|---|---|
+| FP64 | 10⁻⁶ | 5,6 ms | 8·10⁻¹¹ |
+| FP32 | 10⁻⁶ | 4,9 ms | 4,7 % |
+| FP32 | ∛ε ≈ 5·10⁻³ | 5,4 ms | 4·10⁻⁶ |
+
+En varias ejecuciones los tres tiempos bailan un ±10 % y ninguno gana de forma clara: el kernel pasa el tiempo recorriendo términos y comparando índices, no multiplicando, así que la potencia en FP64 no es el cuello de botella. Lo que sí cambia es el error. Con el mismo paso, float (unos 7 dígitos) pierde casi todo en la resta de la diferencia centrada. Con el paso que equilibra truncamiento y redondeo, la raíz cúbica de épsilon, se queda en 4·10⁻⁶, cinco órdenes peor que en doble. Aquí FP64 es la opción correcta.
+
 Como referencia, la versión original medida en el laboratorio de la universidad (RTX 2080 Ti) tardaba 15,96 ms, prácticamente lo mismo que en la RTX 5070: el cuello de botella era el diseño del kernel, no la tarjeta. Para repetir las medidas sin GPU propia está [notebooks/benchmark_cuda_colab.ipynb](notebooks/benchmark_cuda_colab.ipynb), que lo hace todo en Google Colab. En GitHub Actions solo se comprueba que compila, porque los runners no tienen GPU.
 
 ## Cómo ejecutarlo
 
-Requisitos: CMake 3.24 o superior y un compilador de C con OpenMP (GCC o Clang con libomp). CUDA es opcional; en Windows lo más sencillo es WSL2 con Ubuntu y el paquete `cuda-toolkit` del repositorio de NVIDIA para WSL, que usa el driver de Windows.
+Requisitos: CMake 3.25 o superior y un compilador de C con OpenMP (GCC o Clang con libomp). CUDA es opcional; en Windows lo más sencillo es WSL2 con Ubuntu y el paquete `cuda-toolkit` del repositorio de NVIDIA para WSL, que usa el driver de Windows.
 
 ```bash
 git clone https://github.com/alejandrorevillaEng/gradientes-paralelos.git
 cd gradientes-paralelos
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --preset release
+cmake --build --preset release
 ```
 
 ```bash
-./build/gradbench --experimento todo --csv resultados/mi_cpu.csv
-./build/sistema_demo
-./build/gradbench_cuda --csv resultados/mi_gpu.csv     # solo si se ha compilado con CUDA
+./build/release/gradbench --experimento todo --csv resultados/mi_cpu.csv
+./build/release/sistema_demo
+```
+
+Con GPU, el preset `cuda` compila además `gradbench_cuda` para la tarjeta de la máquina:
+
+```bash
+cmake --preset cuda && cmake --build --preset cuda
+./build/cuda/gradbench_cuda --csv resultados/mi_gpu.csv
+```
+
+Sin instalar nada, con Docker:
+
+```bash
+docker build -t gradientes .
+docker run --rm gradientes --experimento escalado
+```
+
+Desde Python, después de compilar:
+
+```python
+import sys; sys.path.insert(0, "python")
+from gradientes import Polinomio, gradiente
+
+f = Polinomio(2, [(3.0, [(0, 2), (1, 1)]), (2.0, [(1, 3)])])  # 3x²y + 2y³
+f.gradiente([1.0, 2.0], hilos=8)                              # [12.0, 27.0]
+
+grande = Polinomio.aleatorio(5000, 100_000, semilla=1)
+grande.gradiente([0.5] * 5000, metodo="terminos", hilos=16)
+
+gradiente(lambda v: (1 - v[0])**2 + 100 * (v[1] - v[0]**2)**2, [-1.2, 1.0])  # cualquier función
 ```
 
 `gradbench --help` lista las opciones (variables, términos, lista de hilos, repeticiones, semilla). Para las gráficas:
@@ -109,13 +153,17 @@ pip install -r bench/requirements.txt
 python bench/graficas.py --cpu resultados/mi_cpu.csv --gpu resultados/mi_gpu.csv
 ```
 
-## Tests
+## Tests y calidad
 
 ```bash
-ctest --test-dir build --output-on-failure
+ctest --preset release
 ```
 
-Comprueban el ejemplo del enunciado (∇f(1, 2, 3) = (8, 15, 8)), polinomios con exponentes, una función que no es un polinomio (Rosenbrock), que todas las versiones paralelas coinciden con el gradiente analítico, la eliminación gaussiana con pivoteo y que Newton resuelve el sistema del enunciado y uno aleatorio de 40 ecuaciones. En CI se compila con GCC y con Clang y los avisos cuentan como errores.
+- Tests de C: el ejemplo del enunciado (∇f(1, 2, 3) = (8, 15, 8)), polinomios con exponentes, una función que no es un polinomio (Rosenbrock), que todas las versiones paralelas coinciden con el gradiente analítico, la eliminación gaussiana con pivoteo, Newton en el sistema del enunciado y en uno aleatorio de 40 ecuaciones, y que un término con variables fuera de rango se rechaza en vez de leer fuera de memoria.
+- Tests de Python: los bindings contra el gradiente exacto, entradas no válidas, errores que salta la función de Python y el ejemplo de la documentación.
+- Una ejecución corta del benchmark completo como prueba de humo.
+
+En cada cambio, la CI compila con GCC y con Clang con los avisos como errores, pasa los tests con AddressSanitizer y UndefinedBehaviorSanitizer (`cmake --preset sanitizers`), analiza el código con cppcheck, mide la cobertura con gcov (falla por debajo del 85 % de líneas; ahora está en el 93 %), construye la imagen Docker y comprueba que el código CUDA compila.
 
 ## Estructura
 
@@ -123,11 +171,15 @@ Comprueban el ejemplo del enunciado (∇f(1, 2, 3) = (8, 15, 8)), polinomios con
 include/ y src/   biblioteca: polinomios, gradientes, sistemas y Newton
 src/main_*.c      gradbench (benchmarks) y sistema_demo
 cuda/             kernels y benchmark de GPU
+python/           bindings de Python (ctypes) y sus tests
 tests/            tests de la parte de CPU
-bench/            gráficas a partir de los CSV
+bench/            gráficas y datos de la página a partir de los CSV
 notebooks/        benchmark de CUDA en Google Colab
 resultados/       CSV y salida de las mediciones
+docs/             página de resultados y documentación
 ```
+
+Las decisiones de diseño (estructura de datos, reparto de hilos, kernels) están explicadas en [docs/arquitectura.md](docs/arquitectura.md). Los cambios de cada versión, en el [CHANGELOG](CHANGELOG.md), y cómo contribuir, en [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Autor
 
